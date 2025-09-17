@@ -3,7 +3,6 @@ import net.minecrell.pluginyml.bukkit.BukkitPluginDescription
 plugins {
     kotlin("jvm") version "1.9.22"
     id("net.minecrell.plugin-yml.bukkit") version "0.6.0"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "ru.potionmixer"
@@ -39,13 +38,9 @@ tasks {
         }
     }
     
-    shadowJar {
-        archiveClassifier.set("")
-        relocate("kotlin", "ru.potionmixer.kotlin")
-    }
-    
-    assemble {
-        dependsOn(shadowJar)
+    jar {
+        from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 }
 

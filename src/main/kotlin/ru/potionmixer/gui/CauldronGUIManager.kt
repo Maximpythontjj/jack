@@ -32,7 +32,9 @@ class CauldronGUIManager(
     
     private val openGUIs = mutableMapOf<UUID, Inventory>()
     
-    override fun getInventory(): Inventory? = null
+    override fun getInventory(): Inventory {
+        return Bukkit.createInventory(this, INVENTORY_SIZE, "Котёл")
+    }
     
     fun updateValidator(newValidator: PotionMixingValidator) {
         mixingValidator = newValidator
