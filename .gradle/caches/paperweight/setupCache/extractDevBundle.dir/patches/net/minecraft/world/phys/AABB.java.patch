@@ -1,0 +1,11 @@
+--- a/net/minecraft/world/phys/AABB.java
++++ b/net/minecraft/world/phys/AABB.java
+@@ -331,7 +331,7 @@
+     }
+ 
+     @Nullable
+-    private static Direction getDirection(
++    public static Direction getDirection( // Paper - optimise collisions - public
+         AABB box, Vec3 intersectingVector, double[] traceDistanceResult, @Nullable Direction approachDirection, double deltaX, double deltaY, double deltaZ
+     ) {
+         return getDirection(

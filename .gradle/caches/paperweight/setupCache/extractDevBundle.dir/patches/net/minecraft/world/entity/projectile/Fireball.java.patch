@@ -1,0 +1,67 @@
+--- a/net/minecraft/world/entity/projectile/Fireball.java
++++ b/net/minecraft/world/entity/projectile/Fireball.java
+@@ -13,6 +13,7 @@
+ import net.minecraft.world.phys.Vec3;
+ 
+ public abstract class Fireball extends AbstractHurtingProjectile implements ItemSupplier {
++
+     private static final float MIN_CAMERA_DISTANCE_SQUARED = 12.25F;
+     private static final EntityDataAccessor<ItemStack> DATA_ITEM_STACK = SynchedEntityData.defineId(Fireball.class, EntityDataSerializers.ITEM_STACK);
+ 
+@@ -30,24 +31,24 @@
+ 
+     public void setItem(ItemStack stack) {
+         if (stack.isEmpty()) {
+-            this.getEntityData().set(DATA_ITEM_STACK, this.getDefaultItem());
++            this.getEntityData().set(Fireball.DATA_ITEM_STACK, this.getDefaultItem());
+         } else {
+-            this.getEntityData().set(DATA_ITEM_STACK, stack.copyWithCount(1));
++            this.getEntityData().set(Fireball.DATA_ITEM_STACK, stack.copyWithCount(1));
+         }
++
+     }
+ 
+     @Override
+-    protected void playEntityOnFireExtinguishedSound() {
+-    }
++    protected void playEntityOnFireExtinguishedSound() {}
+ 
+     @Override
+     public ItemStack getItem() {
+-        return this.getEntityData().get(DATA_ITEM_STACK);
++        return (ItemStack) this.getEntityData().get(Fireball.DATA_ITEM_STACK);
+     }
+ 
+     @Override
+     protected void defineSynchedData(SynchedEntityData.Builder builder) {
+-        builder.define(DATA_ITEM_STACK, this.getDefaultItem());
++        builder.define(Fireball.DATA_ITEM_STACK, this.getDefaultItem());
+     }
+ 
+     @Override
+@@ -60,10 +61,16 @@
+     public void readAdditionalSaveData(CompoundTag nbt) {
+         super.readAdditionalSaveData(nbt);
+         if (nbt.contains("Item", 10)) {
+-            this.setItem(ItemStack.parse(this.registryAccess(), nbt.getCompound("Item")).orElse(this.getDefaultItem()));
++            // CraftBukkit start - SPIGOT-5474 probably came from bugged earlier versions
++            ItemStack itemstack = (ItemStack) ItemStack.parse(this.registryAccess(), nbt.getCompound("Item")).orElse(this.getDefaultItem());
++            if (!itemstack.isEmpty()) {
++                this.setItem(itemstack);
++            }
++            // CraftBukkit end
+         } else {
+             this.setItem(this.getDefaultItem());
+         }
++
+     }
+ 
+     private ItemStack getDefaultItem() {
+@@ -77,6 +84,6 @@
+ 
+     @Override
+     public boolean shouldRenderAtSqrDistance(double distance) {
+-        return (this.tickCount >= 2 || !(distance < 12.25)) && super.shouldRenderAtSqrDistance(distance);
++        return this.tickCount < 2 && distance < 12.25D ? false : super.shouldRenderAtSqrDistance(distance);
+     }
+ }

@@ -1,0 +1,173 @@
+--- a/net/minecraft/world/inventory/SmithingMenu.java
++++ b/net/minecraft/world/inventory/SmithingMenu.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.world.inventory;
+ 
+ import java.util.List;
++import java.util.Objects;
+ import java.util.Optional;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.world.Container;
+@@ -16,8 +17,10 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Blocks;
+ import net.minecraft.world.level.block.state.BlockState;
++import org.bukkit.craftbukkit.inventory.CraftInventoryView; // CraftBukkit
+ 
+ public class SmithingMenu extends ItemCombinerMenu {
++
+     public static final int TEMPLATE_SLOT = 0;
+     public static final int BASE_SLOT = 1;
+     public static final int ADDITIONAL_SLOT = 2;
+@@ -31,7 +34,10 @@
+     private final RecipePropertySet baseItemTest;
+     private final RecipePropertySet templateItemTest;
+     private final RecipePropertySet additionItemTest;
+-    private final DataSlot hasRecipeError = DataSlot.standalone();
++    private final DataSlot hasRecipeError;
++    // CraftBukkit start
++    private CraftInventoryView bukkitEntity;
++    // CraftBukkit end
+ 
+     public SmithingMenu(int syncId, Inventory playerInventory) {
+         this(syncId, playerInventory, ContainerLevelAccess.NULL);
+@@ -42,7 +48,8 @@
+     }
+ 
+     private SmithingMenu(int syncId, Inventory playerInventory, ContainerLevelAccess context, Level world) {
+-        super(MenuType.SMITHING, syncId, playerInventory, context, createInputSlotDefinitions(world.recipeAccess()));
++        super(MenuType.SMITHING, syncId, playerInventory, context, SmithingMenu.createInputSlotDefinitions(world.recipeAccess()));
++        this.hasRecipeError = DataSlot.standalone();
+         this.level = world;
+         this.baseItemTest = world.recipeAccess().propertySet(RecipePropertySet.SMITHING_BASE);
+         this.templateItemTest = world.recipeAccess().propertySet(RecipePropertySet.SMITHING_TEMPLATE);
+@@ -51,15 +58,17 @@
+     }
+ 
+     private static ItemCombinerMenuSlotDefinition createInputSlotDefinitions(RecipeAccess recipeManager) {
+-        RecipePropertySet recipePropertySet = recipeManager.propertySet(RecipePropertySet.SMITHING_BASE);
+-        RecipePropertySet recipePropertySet2 = recipeManager.propertySet(RecipePropertySet.SMITHING_TEMPLATE);
+-        RecipePropertySet recipePropertySet3 = recipeManager.propertySet(RecipePropertySet.SMITHING_ADDITION);
+-        return ItemCombinerMenuSlotDefinition.create()
+-            .withSlot(0, 8, 48, recipePropertySet2::test)
+-            .withSlot(1, 26, 48, recipePropertySet::test)
+-            .withSlot(2, 44, 48, recipePropertySet3::test)
+-            .withResultSlot(3, 98, 48)
+-            .build();
++        RecipePropertySet recipepropertyset = recipeManager.propertySet(RecipePropertySet.SMITHING_BASE);
++        RecipePropertySet recipepropertyset1 = recipeManager.propertySet(RecipePropertySet.SMITHING_TEMPLATE);
++        RecipePropertySet recipepropertyset2 = recipeManager.propertySet(RecipePropertySet.SMITHING_ADDITION);
++        ItemCombinerMenuSlotDefinition.Builder itemcombinermenuslotdefinition_a = ItemCombinerMenuSlotDefinition.create();
++
++        Objects.requireNonNull(recipepropertyset1);
++        itemcombinermenuslotdefinition_a = itemcombinermenuslotdefinition_a.withSlot(0, 8, 48, recipepropertyset1::test);
++        Objects.requireNonNull(recipepropertyset);
++        itemcombinermenuslotdefinition_a = itemcombinermenuslotdefinition_a.withSlot(1, 26, 48, recipepropertyset::test);
++        Objects.requireNonNull(recipepropertyset2);
++        return itemcombinermenuslotdefinition_a.withSlot(2, 44, 48, recipepropertyset2::test).withResultSlot(3, 98, 48).build();
+     }
+ 
+     @Override
+@@ -74,7 +83,9 @@
+         this.shrinkStackInSlot(0);
+         this.shrinkStackInSlot(1);
+         this.shrinkStackInSlot(2);
+-        this.access.execute((world, pos) -> world.levelEvent(1044, pos, 0));
++        this.access.execute((world, blockposition) -> {
++            world.levelEvent(1044, blockposition, 0);
++        });
+     }
+ 
+     private List<ItemStack> getRelevantItems() {
+@@ -86,38 +97,48 @@
+     }
+ 
+     private void shrinkStackInSlot(int slot) {
+-        ItemStack itemStack = this.inputSlots.getItem(slot);
+-        if (!itemStack.isEmpty()) {
+-            itemStack.shrink(1);
+-            this.inputSlots.setItem(slot, itemStack);
++        ItemStack itemstack = this.inputSlots.getItem(slot);
++
++        if (!itemstack.isEmpty()) {
++            itemstack.shrink(1);
++            this.inputSlots.setItem(slot, itemstack);
+         }
++
+     }
+ 
+     @Override
+     public void slotsChanged(Container inventory) {
+         super.slotsChanged(inventory);
+         if (this.level instanceof ServerLevel) {
+-            boolean bl = this.getSlot(0).hasItem() && this.getSlot(1).hasItem() && this.getSlot(2).hasItem() && !this.getSlot(this.getResultSlot()).hasItem();
+-            this.hasRecipeError.set(bl ? 1 : 0);
++            boolean flag = this.getSlot(0).hasItem() && this.getSlot(1).hasItem() && this.getSlot(2).hasItem() && !this.getSlot(this.getResultSlot()).hasItem();
++
++            this.hasRecipeError.set(flag ? 1 : 0);
+         }
++
++        org.bukkit.craftbukkit.event.CraftEventFactory.callPrepareResultEvent(this, RESULT_SLOT); // Paper - Add PrepareResultEvent
+     }
+ 
+     @Override
+     public void createResult() {
+-        SmithingRecipeInput smithingRecipeInput = this.createRecipeInput();
+-        Optional<RecipeHolder<SmithingRecipe>> optional;
+-        if (this.level instanceof ServerLevel serverLevel) {
+-            optional = serverLevel.recipeAccess().getRecipeFor(RecipeType.SMITHING, smithingRecipeInput, serverLevel);
++        SmithingRecipeInput smithingrecipeinput = this.createRecipeInput();
++        Level world = this.level;
++        Optional<RecipeHolder<SmithingRecipe>> optional; // CraftBukkit - decompile error
++
++        if (world instanceof ServerLevel worldserver) {
++            optional = worldserver.recipeAccess().getRecipeFor(RecipeType.SMITHING, smithingrecipeinput, worldserver);
+         } else {
+             optional = Optional.empty();
+         }
+ 
+-        optional.ifPresentOrElse(recipe -> {
+-            ItemStack itemStack = recipe.value().assemble(smithingRecipeInput, this.level.registryAccess());
+-            this.resultSlots.setRecipeUsed((RecipeHolder<?>)recipe);
+-            this.resultSlots.setItem(0, itemStack);
++        optional.ifPresentOrElse((recipeholder) -> {
++            ItemStack itemstack = ((SmithingRecipe) recipeholder.value()).assemble(smithingrecipeinput, this.level.registryAccess());
++
++            this.resultSlots.setRecipeUsed(recipeholder);
++            // CraftBukkit start
++            org.bukkit.craftbukkit.event.CraftEventFactory.callPrepareSmithingEvent(this.getBukkitView(), itemstack);
++            // CraftBukkit end
+         }, () -> {
+-            this.resultSlots.setRecipeUsed(null);
++            this.resultSlots.setRecipeUsed((RecipeHolder) null);
+             this.resultSlots.setItem(0, ItemStack.EMPTY);
+         });
+     }
+@@ -129,12 +150,24 @@
+ 
+     @Override
+     public boolean canMoveIntoInputSlots(ItemStack stack) {
+-        return this.templateItemTest.test(stack) && !this.getSlot(0).hasItem()
+-            || this.baseItemTest.test(stack) && !this.getSlot(1).hasItem()
+-            || this.additionItemTest.test(stack) && !this.getSlot(2).hasItem();
++        return this.templateItemTest.test(stack) && !this.getSlot(0).hasItem() ? true : (this.baseItemTest.test(stack) && !this.getSlot(1).hasItem() ? true : this.additionItemTest.test(stack) && !this.getSlot(2).hasItem());
+     }
+ 
+     public boolean hasRecipeError() {
+         return this.hasRecipeError.get() > 0;
+     }
++
++    // CraftBukkit start
++    @Override
++    public CraftInventoryView getBukkitView() {
++        if (this.bukkitEntity != null) {
++            return this.bukkitEntity;
++        }
++
++        org.bukkit.craftbukkit.inventory.CraftInventory inventory = new org.bukkit.craftbukkit.inventory.CraftInventorySmithing(
++                this.access.getLocation(), this.inputSlots, this.resultSlots);
++        this.bukkitEntity = new CraftInventoryView(this.player.getBukkitEntity(), inventory, this);
++        return this.bukkitEntity;
++    }
++    // CraftBukkit end
+ }

@@ -1,0 +1,320 @@
+--- a/net/minecraft/world/entity/projectile/ThrownEnderpearl.java
++++ b/net/minecraft/world/entity/projectile/ThrownEnderpearl.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.world.entity.projectile;
+ 
++import java.util.Iterator;
+ import java.util.UUID;
+ import javax.annotation.Nullable;
+ import net.minecraft.core.BlockPos;
+@@ -15,6 +16,7 @@
+ import net.minecraft.world.entity.LivingEntity;
+ import net.minecraft.world.entity.Relative;
+ import net.minecraft.world.entity.monster.Endermite;
++import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.Item;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.item.Items;
+@@ -22,12 +24,18 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Blocks;
+ import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.level.dimension.LevelStem;
+ import net.minecraft.world.level.portal.TeleportTransition;
+ import net.minecraft.world.phys.EntityHitResult;
+ import net.minecraft.world.phys.HitResult;
+ import net.minecraft.world.phys.Vec3;
++import org.bukkit.event.entity.CreatureSpawnEvent;
++import org.bukkit.event.entity.EntityRemoveEvent;
++import org.bukkit.event.player.PlayerTeleportEvent;
++// CraftBukkit end
+ 
+ public class ThrownEnderpearl extends ThrowableItemProjectile {
++
+     private long ticketTimer = 0L;
+ 
+     public ThrownEnderpearl(EntityType<? extends ThrownEnderpearl> type, Level world) {
+@@ -58,28 +66,41 @@
+     }
+ 
+     private void deregisterFromCurrentOwner() {
+-        if (this.getOwner() instanceof ServerPlayer serverPlayer) {
+-            serverPlayer.deregisterEnderPearl(this);
++        Entity entity = this.getOwner();
++
++        if (entity instanceof ServerPlayer entityplayer) {
++            entityplayer.deregisterEnderPearl(this);
+         }
++
+     }
+ 
+     private void registerToCurrentOwner() {
+-        if (this.getOwner() instanceof ServerPlayer serverPlayer) {
+-            serverPlayer.registerEnderPearl(this);
++        Entity entity = this.getOwner();
++
++        if (entity instanceof ServerPlayer entityplayer) {
++            entityplayer.registerEnderPearl(this);
+         }
++
+     }
+ 
+     @Nullable
+     @Override
+     protected Entity findOwner(UUID uuid) {
+-        if (this.level() instanceof ServerLevel serverLevel) {
++        Level world = this.level();
++
++        if (world instanceof ServerLevel worldserver) {
+             Entity entity = super.findOwner(uuid);
++
+             if (entity != null) {
+                 return entity;
+             } else {
+-                for (ServerLevel serverLevel3 : serverLevel.getServer().getAllLevels()) {
+-                    if (serverLevel3 != serverLevel) {
+-                        entity = serverLevel3.getEntity(uuid);
++                Iterator iterator = worldserver.getServer().getAllLevels().iterator();
++
++                while (iterator.hasNext()) {
++                    ServerLevel worldserver1 = (ServerLevel) iterator.next();
++
++                    if (worldserver1 != worldserver) {
++                        entity = worldserver1.getEntity(uuid);
+                         if (entity != null) {
+                             return entity;
+                         }
+@@ -103,77 +124,87 @@
+     protected void onHit(HitResult hitResult) {
+         super.onHit(hitResult);
+ 
+-        for (int i = 0; i < 32; i++) {
+-            this.level()
+-                .addParticle(
+-                    ParticleTypes.PORTAL,
+-                    this.getX(),
+-                    this.getY() + this.random.nextDouble() * 2.0,
+-                    this.getZ(),
+-                    this.random.nextGaussian(),
+-                    0.0,
+-                    this.random.nextGaussian()
+-                );
++        for (int i = 0; i < 32; ++i) {
++            this.level().addParticle(ParticleTypes.PORTAL, this.getX(), this.getY() + this.random.nextDouble() * 2.0D, this.getZ(), this.random.nextGaussian(), 0.0D, this.random.nextGaussian());
+         }
+ 
+-        if (this.level() instanceof ServerLevel serverLevel && !this.isRemoved()) {
+-            Entity entity = this.getOwner();
+-            if (entity != null && isAllowedToTeleportOwner(entity, serverLevel)) {
+-                if (entity.isPassenger()) {
+-                    entity.unRide();
+-                }
++        Level world = this.level();
+ 
+-                Vec3 vec3 = this.oldPosition();
+-                if (entity instanceof ServerPlayer serverPlayer) {
+-                    if (serverPlayer.connection.isAcceptingMessages()) {
+-                        if (this.random.nextFloat() < 0.05F && serverLevel.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING)) {
+-                            Endermite endermite = EntityType.ENDERMITE.create(serverLevel, EntitySpawnReason.TRIGGERED);
+-                            if (endermite != null) {
+-                                endermite.moveTo(entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), entity.getXRot());
+-                                serverLevel.addFreshEntity(endermite);
++        if (world instanceof ServerLevel worldserver) {
++            if (!this.isRemoved()) {
++                Entity entity = this.getOwner();
++
++                if (entity != null && ThrownEnderpearl.isAllowedToTeleportOwner(entity, worldserver)) {
++                    if (entity.isPassenger()) {
++                        entity.unRide();
++                    }
++
++                    Vec3 vec3d = this.oldPosition();
++
++                    if (entity instanceof ServerPlayer) {
++                        ServerPlayer entityplayer = (ServerPlayer) entity;
++
++                        if (entityplayer.connection.isAcceptingMessages()) {
++                            // CraftBukkit start
++                            ServerPlayer entityplayer1 = entityplayer.teleport(new TeleportTransition(worldserver, vec3d, Vec3.ZERO, 0.0F, 0.0F, Relative.union(Relative.ROTATION, Relative.DELTA), TeleportTransition.DO_NOTHING, PlayerTeleportEvent.TeleportCause.ENDER_PEARL));
++                            if (entityplayer1 == null) {
++                                this.discard(EntityRemoveEvent.Cause.HIT);
++                                return;
+                             }
+-                        }
++                            // CraftBukkit end
++                            if (this.random.nextFloat() < 0.05F && worldserver.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING)) {
++                                Endermite entityendermite = (Endermite) EntityType.ENDERMITE.create(worldserver, EntitySpawnReason.TRIGGERED);
+ 
+-                        if (this.isOnPortalCooldown()) {
+-                            entity.setPortalCooldown();
++                                if (entityendermite != null) {
++                                    entityendermite.moveTo(entity.getX(), entity.getY(), entity.getZ(), entity.getYRot(), entity.getXRot());
++                                    worldserver.addFreshEntity(entityendermite, CreatureSpawnEvent.SpawnReason.ENDER_PEARL);
++                                }
++                            }
++
++                            if (this.isOnPortalCooldown()) {
++                                entity.setPortalCooldown();
++                            }
++
++                            // EntityPlayer entityplayer1 = entityplayer.teleport(new TeleportTransition(worldserver, vec3d, Vec3D.ZERO, 0.0F, 0.0F, Relative.union(Relative.ROTATION, Relative.DELTA), TeleportTransition.DO_NOTHING)); // CraftBukkit - moved up
++
++                            if (entityplayer1 != null) {
++                                entityplayer1.resetFallDistance();
++                                entityplayer1.resetCurrentImpulseContext();
++                                entityplayer1.hurtServer(entityplayer.serverLevel(), this.damageSources().enderPearl().customEventDamager(this), 5.0F); // CraftBukkit // Paper - fix DamageSource API
++                            }
++
++                            this.playSound(worldserver, vec3d);
+                         }
++                    } else {
++                        Entity entity1 = entity.teleport(new TeleportTransition(worldserver, vec3d, entity.getDeltaMovement(), entity.getYRot(), entity.getXRot(), TeleportTransition.DO_NOTHING));
+ 
+-                        ServerPlayer serverPlayer2 = serverPlayer.teleport(
+-                            new TeleportTransition(
+-                                serverLevel, vec3, Vec3.ZERO, 0.0F, 0.0F, Relative.union(Relative.ROTATION, Relative.DELTA), TeleportTransition.DO_NOTHING
+-                            )
+-                        );
+-                        if (serverPlayer2 != null) {
+-                            serverPlayer2.resetFallDistance();
+-                            serverPlayer2.resetCurrentImpulseContext();
+-                            serverPlayer2.hurtServer(serverPlayer.serverLevel(), this.damageSources().enderPearl(), 5.0F);
++                        if (entity1 != null) {
++                            entity1.resetFallDistance();
+                         }
+ 
+-                        this.playSound(serverLevel, vec3);
+-                    }
+-                } else {
+-                    Entity entity2 = entity.teleport(
+-                        new TeleportTransition(serverLevel, vec3, entity.getDeltaMovement(), entity.getYRot(), entity.getXRot(), TeleportTransition.DO_NOTHING)
+-                    );
+-                    if (entity2 != null) {
+-                        entity2.resetFallDistance();
++                        this.playSound(worldserver, vec3d);
+                     }
+ 
+-                    this.playSound(serverLevel, vec3);
++                    this.discard(EntityRemoveEvent.Cause.HIT); // CraftBukkit - add Bukkit remove cause
++                    return;
+                 }
+ 
+-                this.discard();
++                this.discard(EntityRemoveEvent.Cause.HIT); // CraftBukkit - add Bukkit remove cause
+                 return;
+             }
+-
+-            this.discard();
+-            return;
+         }
++
+     }
+ 
+     private static boolean isAllowedToTeleportOwner(Entity entity, Level world) {
+         if (entity.level().dimension() == world.dimension()) {
+-            return !(entity instanceof LivingEntity livingEntity) ? entity.isAlive() : livingEntity.isAlive() && !livingEntity.isSleeping();
++            if (!(entity instanceof LivingEntity)) {
++                return entity.isAlive();
++            } else {
++                LivingEntity entityliving = (LivingEntity) entity;
++
++                return entityliving.isAlive() && !entityliving.isSleeping();
++            }
+         } else {
+             return entity.canUsePortal(true);
+         }
+@@ -184,39 +215,44 @@
+         int i;
+         int j;
+         Entity entity;
+-        label30: {
++        label30:
++        {
+             i = SectionPos.blockToSectionCoord(this.position().x());
+             j = SectionPos.blockToSectionCoord(this.position().z());
+             entity = this.getOwner();
+-            if (entity instanceof ServerPlayer serverPlayer
+-                && !entity.isAlive()
+-                && serverPlayer.serverLevel().getGameRules().getBoolean(GameRules.RULE_ENDER_PEARLS_VANISH_ON_DEATH)) {
+-                this.discard();
+-                break label30;
++            if (entity instanceof ServerPlayer entityplayer) {
++                if (!entity.isAlive() && entityplayer.serverLevel().getGameRules().getBoolean(GameRules.RULE_ENDER_PEARLS_VANISH_ON_DEATH)) {
++                    this.discard(EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
++                    break label30;
++                }
+             }
+ 
+             super.tick();
+         }
+ 
+         if (this.isAlive()) {
+-            BlockPos blockPos = BlockPos.containing(this.position());
+-            if ((--this.ticketTimer <= 0L || i != SectionPos.blockToSectionCoord(blockPos.getX()) || j != SectionPos.blockToSectionCoord(blockPos.getZ()))
+-                && entity instanceof ServerPlayer serverPlayer2) {
+-                this.ticketTimer = serverPlayer2.registerAndUpdateEnderPearlTicket(this);
++            BlockPos blockposition = BlockPos.containing(this.position());
++
++            if ((--this.ticketTimer <= 0L || i != SectionPos.blockToSectionCoord(blockposition.getX()) || j != SectionPos.blockToSectionCoord(blockposition.getZ())) && entity instanceof ServerPlayer) {
++                ServerPlayer entityplayer1 = (ServerPlayer) entity;
++
++                this.ticketTimer = entityplayer1.registerAndUpdateEnderPearlTicket(this);
+             }
++
+         }
+     }
+ 
+     private void playSound(Level world, Vec3 pos) {
+-        world.playSound(null, pos.x, pos.y, pos.z, SoundEvents.PLAYER_TELEPORT, SoundSource.PLAYERS);
++        world.playSound((Player) null, pos.x, pos.y, pos.z, SoundEvents.PLAYER_TELEPORT, SoundSource.PLAYERS);
+     }
+ 
+     @Nullable
+     @Override
+     public Entity teleport(TeleportTransition teleportTarget) {
+         Entity entity = super.teleport(teleportTarget);
++
+         if (entity != null) {
+-            entity.placePortalTicket(BlockPos.containing(entity.position()));
++            if (!this.level().paperConfig().misc.legacyEnderPearlBehavior) entity.placePortalTicket(BlockPos.containing(entity.position())); // Paper - Allow using old ender pearl behavior
+         }
+ 
+         return entity;
+@@ -224,17 +260,32 @@
+ 
+     @Override
+     public boolean canTeleport(Level from, Level to) {
+-        return from.dimension() == Level.END && to.dimension() == Level.OVERWORLD && this.getOwner() instanceof ServerPlayer serverPlayer
+-            ? super.canTeleport(from, to) && serverPlayer.seenCredits
+-            : super.canTeleport(from, to);
++        if (from.getTypeKey() == LevelStem.END && to.getTypeKey() == LevelStem.OVERWORLD) { // CraftBukkit
++            Entity entity = this.getOwner();
++
++            if (entity instanceof ServerPlayer) {
++                ServerPlayer entityplayer = (ServerPlayer) entity;
++
++                return super.canTeleport(from, to) && entityplayer.seenCredits;
++            }
++        }
++
++        return super.canTeleport(from, to);
+     }
+ 
+     @Override
+     protected void onInsideBlock(BlockState state) {
+         super.onInsideBlock(state);
+-        if (state.is(Blocks.END_GATEWAY) && this.getOwner() instanceof ServerPlayer serverPlayer) {
+-            serverPlayer.onInsideBlock(state);
++        if (state.is(Blocks.END_GATEWAY)) {
++            Entity entity = this.getOwner();
++
++            if (entity instanceof ServerPlayer) {
++                ServerPlayer entityplayer = (ServerPlayer) entity;
++
++                entityplayer.onInsideBlock(state);
++            }
+         }
++
+     }
+ 
+     @Override

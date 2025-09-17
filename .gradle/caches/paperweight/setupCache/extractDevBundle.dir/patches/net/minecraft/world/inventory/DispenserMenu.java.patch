@@ -1,0 +1,126 @@
+--- a/net/minecraft/world/inventory/DispenserMenu.java
++++ b/net/minecraft/world/inventory/DispenserMenu.java
+@@ -6,13 +6,23 @@
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.ItemStack;
+ 
++// CraftBukkit start
++import org.bukkit.craftbukkit.inventory.CraftInventory;
++import org.bukkit.craftbukkit.inventory.CraftInventoryView;
++// CraftBukkit end
++
+ public class DispenserMenu extends AbstractContainerMenu {
++
+     private static final int SLOT_COUNT = 9;
+     private static final int INV_SLOT_START = 9;
+     private static final int INV_SLOT_END = 36;
+     private static final int USE_ROW_SLOT_START = 36;
+     private static final int USE_ROW_SLOT_END = 45;
+     public final Container dispenser;
++    // CraftBukkit start
++    private CraftInventoryView bukkitEntity = null;
++    private Inventory player;
++    // CraftBukkit end
+ 
+     public DispenserMenu(int syncId, Inventory playerInventory) {
+         this(syncId, playerInventory, new SimpleContainer(9));
+@@ -20,6 +30,10 @@
+ 
+     public DispenserMenu(int syncId, Inventory playerInventory, Container inventory) {
+         super(MenuType.GENERIC_3x3, syncId);
++        // CraftBukkit start - Save player
++        this.player = playerInventory;
++        // CraftBukkit end
++
+         checkContainerSize(inventory, 9);
+         this.dispenser = inventory;
+         inventory.startOpen(playerInventory.player);
+@@ -28,48 +42,53 @@
+     }
+ 
+     protected void add3x3GridSlots(Container inventory, int x, int y) {
+-        for (int i = 0; i < 3; i++) {
+-            for (int j = 0; j < 3; j++) {
+-                int k = j + i * 3;
+-                this.addSlot(new Slot(inventory, k, x + j * 18, y + i * 18));
++        for (int k = 0; k < 3; ++k) {
++            for (int l = 0; l < 3; ++l) {
++                int i1 = l + k * 3;
++
++                this.addSlot(new Slot(inventory, i1, x + l * 18, y + k * 18));
+             }
+         }
++
+     }
+ 
+     @Override
+     public boolean stillValid(Player player) {
++        if (!this.checkReachable) return true; // CraftBukkit
+         return this.dispenser.stillValid(player);
+     }
+ 
+     @Override
+     public ItemStack quickMoveStack(Player player, int slot) {
+-        ItemStack itemStack = ItemStack.EMPTY;
+-        Slot slot2 = this.slots.get(slot);
+-        if (slot2 != null && slot2.hasItem()) {
+-            ItemStack itemStack2 = slot2.getItem();
+-            itemStack = itemStack2.copy();
++        ItemStack itemstack = ItemStack.EMPTY;
++        Slot slot1 = (Slot) this.slots.get(slot);
++
++        if (slot1 != null && slot1.hasItem()) {
++            ItemStack itemstack1 = slot1.getItem();
++
++            itemstack = itemstack1.copy();
+             if (slot < 9) {
+-                if (!this.moveItemStackTo(itemStack2, 9, 45, true)) {
++                if (!this.moveItemStackTo(itemstack1, 9, 45, true)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (!this.moveItemStackTo(itemStack2, 0, 9, false)) {
++            } else if (!this.moveItemStackTo(itemstack1, 0, 9, false)) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            if (itemStack2.isEmpty()) {
+-                slot2.setByPlayer(ItemStack.EMPTY);
++            if (itemstack1.isEmpty()) {
++                slot1.setByPlayer(ItemStack.EMPTY);
+             } else {
+-                slot2.setChanged();
++                slot1.setChanged();
+             }
+ 
+-            if (itemStack2.getCount() == itemStack.getCount()) {
++            if (itemstack1.getCount() == itemstack.getCount()) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            slot2.onTake(player, itemStack2);
++            slot1.onTake(player, itemstack1);
+         }
+ 
+-        return itemStack;
++        return itemstack;
+     }
+ 
+     @Override
+@@ -77,4 +96,17 @@
+         super.removed(player);
+         this.dispenser.stopOpen(player);
+     }
++
++    // CraftBukkit start
++    @Override
++    public CraftInventoryView getBukkitView() {
++        if (this.bukkitEntity != null) {
++            return this.bukkitEntity;
++        }
++
++        CraftInventory inventory = new CraftInventory(this.dispenser);
++        this.bukkitEntity = new CraftInventoryView(this.player.player.getBukkitEntity(), inventory, this);
++        return this.bukkitEntity;
++    }
++    // CraftBukkit end
+ }

@@ -1,0 +1,329 @@
+--- a/net/minecraft/world/inventory/StonecutterMenu.java
++++ b/net/minecraft/world/inventory/StonecutterMenu.java
+@@ -7,7 +7,6 @@
+ import net.minecraft.world.Container;
+ import net.minecraft.world.SimpleContainer;
+ import net.minecraft.world.entity.player.Inventory;
+-import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.Item;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.item.crafting.RecipeHolder;
+@@ -17,7 +16,15 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Blocks;
+ 
++// CraftBukkit start
++import org.bukkit.Location;
++import org.bukkit.craftbukkit.inventory.CraftInventoryStonecutter;
++import org.bukkit.craftbukkit.inventory.view.CraftStonecutterView;
++import org.bukkit.entity.Player;
++// CraftBukkit end
++
+ public class StonecutterMenu extends AbstractContainerMenu {
++
+     public static final int INPUT_SLOT = 0;
+     public static final int RESULT_SLOT = 1;
+     private static final int INV_SLOT_START = 2;
+@@ -25,31 +32,59 @@
+     private static final int USE_ROW_SLOT_START = 29;
+     private static final int USE_ROW_SLOT_END = 38;
+     private final ContainerLevelAccess access;
+-    final DataSlot selectedRecipeIndex = DataSlot.standalone();
++    final DataSlot selectedRecipeIndex;
+     private final Level level;
+-    private SelectableRecipe.SingleInputSet<StonecutterRecipe> recipesForInput = SelectableRecipe.SingleInputSet.empty();
+-    private ItemStack input = ItemStack.EMPTY;
++    private SelectableRecipe.SingleInputSet<StonecutterRecipe> recipesForInput;
++    private ItemStack input;
+     long lastSoundTime;
+     final Slot inputSlot;
+     final Slot resultSlot;
+-    Runnable slotUpdateListener = () -> {
+-    };
+-    public final Container container = new SimpleContainer(1) {
+-        @Override
+-        public void setChanged() {
+-            super.setChanged();
+-            StonecutterMenu.this.slotsChanged(this);
+-            StonecutterMenu.this.slotUpdateListener.run();
++    Runnable slotUpdateListener;
++    public final Container container;
++    final ResultContainer resultContainer;
++    // CraftBukkit start
++    private CraftStonecutterView bukkitEntity = null;
++    private Player player;
++
++    @Override
++    public CraftStonecutterView getBukkitView() {
++        if (this.bukkitEntity != null) {
++            return this.bukkitEntity;
+         }
+-    };
+-    final ResultContainer resultContainer = new ResultContainer();
++
++        CraftInventoryStonecutter inventory = new CraftInventoryStonecutter(this.container, this.resultContainer);
++        this.bukkitEntity = new CraftStonecutterView(this.player, inventory, this);
++        return this.bukkitEntity;
++    }
++    // CraftBukkit end
+ 
+     public StonecutterMenu(int syncId, Inventory playerInventory) {
+         this(syncId, playerInventory, ContainerLevelAccess.NULL);
+     }
+ 
+-    public StonecutterMenu(int syncId, Inventory playerInventory, ContainerLevelAccess context) {
++    public StonecutterMenu(int syncId, Inventory playerInventory, final ContainerLevelAccess context) {
+         super(MenuType.STONECUTTER, syncId);
++        this.selectedRecipeIndex = DataSlot.shared(new int[1], 0); // Paper - Add PlayerStonecutterRecipeSelectEvent
++        this.recipesForInput = SelectableRecipe.SingleInputSet.empty();
++        this.input = ItemStack.EMPTY;
++        this.slotUpdateListener = () -> {
++        };
++        this.container = new SimpleContainer(this.createBlockHolder(context), 1) { // Paper - Add missing InventoryHolders
++            @Override
++            public void setChanged() {
++                super.setChanged();
++                StonecutterMenu.this.slotsChanged(this);
++                StonecutterMenu.this.slotUpdateListener.run();
++            }
++
++            // CraftBukkit start
++            @Override
++            public Location getLocation() {
++                return context.getLocation();
++            }
++            // CraftBukkit end
++        };
++        this.resultContainer = new ResultContainer(this.createBlockHolder(context)); // Paper - Add missing InventoryHolders
+         this.access = context;
+         this.level = playerInventory.player.level();
+         this.inputSlot = this.addSlot(new Slot(this.container, 0, 20, 33));
+@@ -60,20 +95,23 @@
+             }
+ 
+             @Override
+-            public void onTake(Player player, ItemStack stack) {
++            public void onTake(net.minecraft.world.entity.player.Player player, ItemStack stack) {
+                 stack.onCraftedBy(player.level(), player, stack.getCount());
+                 StonecutterMenu.this.resultContainer.awardUsedRecipes(player, this.getRelevantItems());
+-                ItemStack itemStack = StonecutterMenu.this.inputSlot.remove(1);
+-                if (!itemStack.isEmpty()) {
++                ItemStack itemstack1 = StonecutterMenu.this.inputSlot.remove(1);
++
++                if (!itemstack1.isEmpty()) {
+                     StonecutterMenu.this.setupResultSlot(StonecutterMenu.this.selectedRecipeIndex.get());
+                 }
+ 
+-                context.execute((world, pos) -> {
+-                    long l = world.getGameTime();
+-                    if (StonecutterMenu.this.lastSoundTime != l) {
+-                        world.playSound(null, pos, SoundEvents.UI_STONECUTTER_TAKE_RESULT, SoundSource.BLOCKS, 1.0F, 1.0F);
+-                        StonecutterMenu.this.lastSoundTime = l;
++                context.execute((world, blockposition) -> {
++                    long j = world.getGameTime();
++
++                    if (StonecutterMenu.this.lastSoundTime != j) {
++                        world.playSound((net.minecraft.world.entity.player.Player) null, blockposition, SoundEvents.UI_STONECUTTER_TAKE_RESULT, SoundSource.BLOCKS, 1.0F, 1.0F);
++                        StonecutterMenu.this.lastSoundTime = j;
+                     }
++
+                 });
+                 super.onTake(player, stack);
+             }
+@@ -84,6 +122,7 @@
+         });
+         this.addStandardInventorySlots(playerInventory, 8, 84);
+         this.addDataSlot(this.selectedRecipeIndex);
++        this.player = (Player) playerInventory.player.getBukkitEntity(); // CraftBukkit
+     }
+ 
+     public int getSelectedRecipeIndex() {
+@@ -103,15 +142,42 @@
+     }
+ 
+     @Override
+-    public boolean stillValid(Player player) {
++    public boolean stillValid(net.minecraft.world.entity.player.Player player) {
++        if (!this.checkReachable) return true; // CraftBukkit
+         return stillValid(this.access, player, Blocks.STONECUTTER);
+     }
+ 
+     @Override
+-    public boolean clickMenuButton(Player player, int id) {
++    public boolean clickMenuButton(net.minecraft.world.entity.player.Player player, int id) {
+         if (this.isValidRecipeIndex(id)) {
+-            this.selectedRecipeIndex.set(id);
+-            this.setupResultSlot(id);
++            // Paper start - Add PlayerStonecutterRecipeSelectEvent
++            int recipeIndex = id;
++            this.selectedRecipeIndex.set(recipeIndex);
++            this.selectedRecipeIndex.checkAndClearUpdateFlag(); // mark as changed
++            paperEventBlock: if (this.isValidRecipeIndex(id)) {
++                final Optional<RecipeHolder<StonecutterRecipe>> recipe = this.recipesForInput.entries().get(id).recipe().recipe();
++                if (recipe.isEmpty()) break paperEventBlock; // The recipe selected does not have an actual server recipe (presumably its the empty one). Cannot call the event, just break.
++
++                io.papermc.paper.event.player.PlayerStonecutterRecipeSelectEvent event = new io.papermc.paper.event.player.PlayerStonecutterRecipeSelectEvent((Player) player.getBukkitEntity(), getBukkitView().getTopInventory(), (org.bukkit.inventory.StonecuttingRecipe) recipe.get().toBukkitRecipe());
++                if (!event.callEvent()) {
++                    player.containerMenu.sendAllDataToRemote();
++                    return false;
++                }
++
++                net.minecraft.resources.ResourceLocation key = org.bukkit.craftbukkit.util.CraftNamespacedKey.toMinecraft(event.getStonecuttingRecipe().getKey());
++                if (!recipe.get().id().location().equals(key)) { // If the recipe did NOT stay the same
++                    for (int newRecipeIndex = 0; newRecipeIndex < this.recipesForInput.entries().size(); newRecipeIndex++) {
++                        if (this.recipesForInput.entries().get(newRecipeIndex).recipe().recipe().filter(r -> r.id().location().equals(key)).isPresent()) {
++                            recipeIndex = newRecipeIndex;
++                            break;
++                        }
++                    }
++                }
++            }
++            player.containerMenu.sendAllDataToRemote();
++            this.selectedRecipeIndex.set(recipeIndex); // set new index, so that listeners can read it
++            this.setupResultSlot(recipeIndex);
++            // Paper end - Add PlayerStonecutterRecipeSelectEvent
+         }
+ 
+         return true;
+@@ -123,11 +189,14 @@
+ 
+     @Override
+     public void slotsChanged(Container inventory) {
+-        ItemStack itemStack = this.inputSlot.getItem();
+-        if (!itemStack.is(this.input.getItem())) {
+-            this.input = itemStack.copy();
+-            this.setupRecipeList(itemStack);
++        ItemStack itemstack = this.inputSlot.getItem();
++
++        if (!itemstack.is(this.input.getItem())) {
++            this.input = itemstack.copy();
++            this.setupRecipeList(itemstack);
+         }
++
++        org.bukkit.craftbukkit.event.CraftEventFactory.callPrepareResultEvent(this, RESULT_SLOT); // Paper - Add PrepareResultEvent
+     }
+ 
+     private void setupRecipeList(ItemStack stack) {
+@@ -138,23 +207,26 @@
+         } else {
+             this.recipesForInput = SelectableRecipe.SingleInputSet.empty();
+         }
++
+     }
+ 
+     void setupResultSlot(int selectedId) {
+-        Optional<RecipeHolder<StonecutterRecipe>> optional;
++        Optional<RecipeHolder<StonecutterRecipe>> optional; // CraftBukkit - decompile error
++
+         if (!this.recipesForInput.isEmpty() && this.isValidRecipeIndex(selectedId)) {
+-            SelectableRecipe.SingleInputEntry<StonecutterRecipe> singleInputEntry = this.recipesForInput.entries().get(selectedId);
+-            optional = singleInputEntry.recipe().recipe();
++            SelectableRecipe.SingleInputEntry<StonecutterRecipe> selectablerecipe_a = (SelectableRecipe.SingleInputEntry) this.recipesForInput.entries().get(selectedId);
++
++            optional = selectablerecipe_a.recipe().recipe();
+         } else {
+             optional = Optional.empty();
+         }
+ 
+-        optional.ifPresentOrElse(recipe -> {
+-            this.resultContainer.setRecipeUsed((RecipeHolder<?>)recipe);
+-            this.resultSlot.set(recipe.value().assemble(new SingleRecipeInput(this.container.getItem(0)), this.level.registryAccess()));
++        optional.ifPresentOrElse((recipeholder) -> {
++            this.resultContainer.setRecipeUsed(recipeholder);
++            this.resultSlot.set(((StonecutterRecipe) recipeholder.value()).assemble(new SingleRecipeInput(this.container.getItem(0)), this.level.registryAccess()));
+         }, () -> {
+             this.resultSlot.set(ItemStack.EMPTY);
+-            this.resultContainer.setRecipeUsed(null);
++            this.resultContainer.setRecipeUsed((RecipeHolder) null);
+         });
+         this.broadcastChanges();
+     }
+@@ -174,60 +246,64 @@
+     }
+ 
+     @Override
+-    public ItemStack quickMoveStack(Player player, int slot) {
+-        ItemStack itemStack = ItemStack.EMPTY;
+-        Slot slot2 = this.slots.get(slot);
+-        if (slot2 != null && slot2.hasItem()) {
+-            ItemStack itemStack2 = slot2.getItem();
+-            Item item = itemStack2.getItem();
+-            itemStack = itemStack2.copy();
++    public ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int slot) {
++        ItemStack itemstack = ItemStack.EMPTY;
++        Slot slot1 = (Slot) this.slots.get(slot);
++
++        if (slot1 != null && slot1.hasItem()) {
++            ItemStack itemstack1 = slot1.getItem();
++            Item item = itemstack1.getItem();
++
++            itemstack = itemstack1.copy();
+             if (slot == 1) {
+-                item.onCraftedBy(itemStack2, player.level(), player);
+-                if (!this.moveItemStackTo(itemStack2, 2, 38, true)) {
++                item.onCraftedBy(itemstack1, player.level(), player);
++                if (!this.moveItemStackTo(itemstack1, 2, 38, true)) {
+                     return ItemStack.EMPTY;
+                 }
+ 
+-                slot2.onQuickCraft(itemStack2, itemStack);
++                slot1.onQuickCraft(itemstack1, itemstack);
+             } else if (slot == 0) {
+-                if (!this.moveItemStackTo(itemStack2, 2, 38, false)) {
++                if (!this.moveItemStackTo(itemstack1, 2, 38, false)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (this.level.recipeAccess().stonecutterRecipes().acceptsInput(itemStack2)) {
+-                if (!this.moveItemStackTo(itemStack2, 0, 1, false)) {
++            } else if (this.level.recipeAccess().stonecutterRecipes().acceptsInput(itemstack1)) {
++                if (!this.moveItemStackTo(itemstack1, 0, 1, false)) {
+                     return ItemStack.EMPTY;
+                 }
+             } else if (slot >= 2 && slot < 29) {
+-                if (!this.moveItemStackTo(itemStack2, 29, 38, false)) {
++                if (!this.moveItemStackTo(itemstack1, 29, 38, false)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (slot >= 29 && slot < 38 && !this.moveItemStackTo(itemStack2, 2, 29, false)) {
++            } else if (slot >= 29 && slot < 38 && !this.moveItemStackTo(itemstack1, 2, 29, false)) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            if (itemStack2.isEmpty()) {
+-                slot2.setByPlayer(ItemStack.EMPTY);
++            if (itemstack1.isEmpty()) {
++                slot1.setByPlayer(ItemStack.EMPTY);
+             }
+ 
+-            slot2.setChanged();
+-            if (itemStack2.getCount() == itemStack.getCount()) {
++            slot1.setChanged();
++            if (itemstack1.getCount() == itemstack.getCount()) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            slot2.onTake(player, itemStack2);
++            slot1.onTake(player, itemstack1);
+             if (slot == 1) {
+-                player.drop(itemStack2, false);
++                player.drop(itemstack1, false);
+             }
+ 
+             this.broadcastChanges();
+         }
+ 
+-        return itemStack;
++        return itemstack;
+     }
+ 
+     @Override
+-    public void removed(Player player) {
++    public void removed(net.minecraft.world.entity.player.Player player) {
+         super.removed(player);
+         this.resultContainer.removeItemNoUpdate(1);
+-        this.access.execute((world, pos) -> this.clearContainer(player, this.container));
++        this.access.execute((world, blockposition) -> {
++            this.clearContainer(player, this.container);
++        });
+     }
+ }

@@ -1,0 +1,314 @@
+--- a/net/minecraft/world/entity/animal/armadillo/Armadillo.java
++++ b/net/minecraft/world/entity/animal/armadillo/Armadillo.java
+@@ -47,16 +47,18 @@
+ import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.level.gameevent.GameEvent;
+ import net.minecraft.world.level.storage.loot.BuiltInLootTables;
++// CraftBukkit start
++import org.bukkit.event.entity.EntityDamageEvent;
++// CraftBukkit end
+ 
+ public class Armadillo extends Animal {
++
+     public static final float BABY_SCALE = 0.6F;
+     public static final float MAX_HEAD_ROTATION_EXTENT = 32.5F;
+     public static final int SCARE_CHECK_INTERVAL = 80;
+-    private static final double SCARE_DISTANCE_HORIZONTAL = 7.0;
+-    private static final double SCARE_DISTANCE_VERTICAL = 2.0;
+-    private static final EntityDataAccessor<Armadillo.ArmadilloState> ARMADILLO_STATE = SynchedEntityData.defineId(
+-        Armadillo.class, EntityDataSerializers.ARMADILLO_STATE
+-    );
++    private static final double SCARE_DISTANCE_HORIZONTAL = 7.0D;
++    private static final double SCARE_DISTANCE_VERTICAL = 2.0D;
++    private static final EntityDataAccessor<Armadillo.ArmadilloState> ARMADILLO_STATE = SynchedEntityData.defineId(Armadillo.class, EntityDataSerializers.ARMADILLO_STATE);
+     private long inStateTicks = 0L;
+     public final AnimationState rollOutAnimationState = new AnimationState();
+     public final AnimationState rollUpAnimationState = new AnimationState();
+@@ -73,21 +75,21 @@
+     @Nullable
+     @Override
+     public AgeableMob getBreedOffspring(ServerLevel world, AgeableMob entity) {
+-        return EntityType.ARMADILLO.create(world, EntitySpawnReason.BREEDING);
++        return (AgeableMob) EntityType.ARMADILLO.create(world, EntitySpawnReason.BREEDING);
+     }
+ 
+     public static AttributeSupplier.Builder createAttributes() {
+-        return Animal.createAnimalAttributes().add(Attributes.MAX_HEALTH, 12.0).add(Attributes.MOVEMENT_SPEED, 0.14);
++        return Animal.createAnimalAttributes().add(Attributes.MAX_HEALTH, 12.0D).add(Attributes.MOVEMENT_SPEED, 0.14D);
+     }
+ 
+     @Override
+     protected void defineSynchedData(SynchedEntityData.Builder builder) {
+         super.defineSynchedData(builder);
+-        builder.define(ARMADILLO_STATE, Armadillo.ArmadilloState.IDLE);
++        builder.define(Armadillo.ARMADILLO_STATE, Armadillo.ArmadilloState.IDLE);
+     }
+ 
+     public boolean isScared() {
+-        return this.entityData.get(ARMADILLO_STATE) != Armadillo.ArmadilloState.IDLE;
++        return this.entityData.get(Armadillo.ARMADILLO_STATE) != Armadillo.ArmadilloState.IDLE;
+     }
+ 
+     public boolean shouldHideInShell() {
+@@ -95,11 +97,11 @@
+     }
+ 
+     public boolean shouldSwitchToScaredState() {
+-        return this.getState() == Armadillo.ArmadilloState.ROLLING && this.inStateTicks > (long)Armadillo.ArmadilloState.ROLLING.animationDuration();
++        return this.getState() == Armadillo.ArmadilloState.ROLLING && this.inStateTicks > (long) Armadillo.ArmadilloState.ROLLING.animationDuration();
+     }
+ 
+     public Armadillo.ArmadilloState getState() {
+-        return this.entityData.get(ARMADILLO_STATE);
++        return (Armadillo.ArmadilloState) this.entityData.get(Armadillo.ARMADILLO_STATE);
+     }
+ 
+     @Override
+@@ -109,12 +111,12 @@
+     }
+ 
+     public void switchToState(Armadillo.ArmadilloState state) {
+-        this.entityData.set(ARMADILLO_STATE, state);
++        this.entityData.set(Armadillo.ARMADILLO_STATE, state);
+     }
+ 
+     @Override
+     public void onSyncedDataUpdated(EntityDataAccessor<?> data) {
+-        if (ARMADILLO_STATE.equals(data)) {
++        if (Armadillo.ARMADILLO_STATE.equals(data)) {
+             this.inStateTicks = 0L;
+         }
+ 
+@@ -133,18 +135,21 @@
+ 
+     @Override
+     protected void customServerAiStep(ServerLevel world) {
+-        ProfilerFiller profilerFiller = Profiler.get();
+-        profilerFiller.push("armadilloBrain");
+-        ((Brain<Armadillo>)this.brain).tick(world, this);
+-        profilerFiller.pop();
+-        profilerFiller.push("armadilloActivityUpdate");
++        ProfilerFiller gameprofilerfiller = Profiler.get();
++
++        gameprofilerfiller.push("armadilloBrain");
++        ((Brain<Armadillo>) this.brain).tick(world, this); // CraftBukkit - decompile error
++        gameprofilerfiller.pop();
++        gameprofilerfiller.push("armadilloActivityUpdate");
+         ArmadilloAi.updateActivity(this);
+-        profilerFiller.pop();
++        gameprofilerfiller.pop();
+         if (this.isAlive() && !this.isBaby() && --this.scuteTime <= 0) {
++            this.forceDrops = true; // CraftBukkit
+             if (this.dropFromGiftLootTable(world, BuiltInLootTables.ARMADILLO_SHED, this::spawnAtLocation)) {
+                 this.playSound(SoundEvents.ARMADILLO_SCUTE_DROP, 1.0F, (this.random.nextFloat() - this.random.nextFloat()) * 0.2F + 1.0F);
+                 this.gameEvent(GameEvent.ENTITY_PLACE);
+             }
++            this.forceDrops = false; // CraftBukkit
+ 
+             this.scuteTime = this.pickNextScuteDropTime();
+         }
+@@ -167,7 +172,7 @@
+             this.clampHeadRotationToBody();
+         }
+ 
+-        this.inStateTicks++;
++        ++this.inStateTicks;
+     }
+ 
+     @Override
+@@ -176,18 +181,18 @@
+     }
+ 
+     private void setupAnimationStates() {
+-        switch (this.getState()) {
+-            case IDLE:
++        switch (this.getState().ordinal()) {
++            case 0:
+                 this.rollOutAnimationState.stop();
+                 this.rollUpAnimationState.stop();
+                 this.peekAnimationState.stop();
+                 break;
+-            case ROLLING:
++            case 1:
+                 this.rollOutAnimationState.stop();
+                 this.rollUpAnimationState.startIfStopped(this.tickCount);
+                 this.peekAnimationState.stop();
+                 break;
+-            case SCARED:
++            case 2:
+                 this.rollOutAnimationState.stop();
+                 this.rollUpAnimationState.stop();
+                 if (this.peekReceivedClient) {
+@@ -202,11 +207,12 @@
+                     this.peekAnimationState.startIfStopped(this.tickCount);
+                 }
+                 break;
+-            case UNROLLING:
++            case 3:
+                 this.rollOutAnimationState.startIfStopped(this.tickCount);
+                 this.rollUpAnimationState.stop();
+                 this.peekAnimationState.stop();
+         }
++
+     }
+ 
+     @Override
+@@ -217,6 +223,7 @@
+         } else {
+             super.handleEntityEvent(status);
+         }
++
+     }
+ 
+     @Override
+@@ -224,19 +231,24 @@
+         return stack.is(ItemTags.ARMADILLO_FOOD);
+     }
+ 
+-    public static boolean checkArmadilloSpawnRules(
+-        EntityType<Armadillo> entityType, LevelAccessor world, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random
+-    ) {
++    public static boolean checkArmadilloSpawnRules(EntityType<Armadillo> entityType, LevelAccessor world, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random) {
+         return world.getBlockState(pos.below()).is(BlockTags.ARMADILLO_SPAWNABLE_ON) && isBrightEnoughToSpawn(world, pos);
+     }
+ 
+     public boolean isScaredBy(LivingEntity entity) {
+-        return this.getBoundingBox().inflate(7.0, 2.0, 7.0).intersects(entity.getBoundingBox())
+-            && (
+-                entity.getType().is(EntityTypeTags.UNDEAD)
+-                    || this.getLastHurtByMob() == entity
+-                    || entity instanceof Player player && !player.isSpectator() && (player.isSprinting() || player.isPassenger())
+-            );
++        if (!this.getBoundingBox().inflate(7.0D, 2.0D, 7.0D).intersects(entity.getBoundingBox())) {
++            return false;
++        } else if (entity.getType().is(EntityTypeTags.UNDEAD)) {
++            return true;
++        } else if (this.getLastHurtByMob() == entity) {
++            return true;
++        } else if (entity instanceof Player) {
++            Player entityhuman = (Player) entity;
++
++            return entityhuman.isSpectator() ? false : entityhuman.isSprinting() || entityhuman.isPassenger();
++        } else {
++            return false;
++        }
+     }
+ 
+     @Override
+@@ -253,6 +265,7 @@
+         if (nbt.contains("scute_time")) {
+             this.scuteTime = nbt.getInt("scute_time");
+         }
++
+     }
+ 
+     public void rollUp() {
+@@ -283,28 +296,36 @@
+     }
+ 
+     @Override
+-    protected void actuallyHurt(ServerLevel world, DamageSource source, float amount) {
+-        super.actuallyHurt(world, source, amount);
++    // CraftBukkit start - void -> boolean
++    public boolean actuallyHurt(ServerLevel worldserver, DamageSource damagesource, float f, EntityDamageEvent event) {
++        boolean damageResult = super.actuallyHurt(worldserver, damagesource, f, event);
++        if (!damageResult) {
++            return false;
++        }
++        // CraftBukkit end
+         if (!this.isNoAi() && !this.isDeadOrDying()) {
+-            if (source.getEntity() instanceof LivingEntity) {
++            if (damagesource.getEntity() instanceof LivingEntity) {
+                 this.getBrain().setMemoryWithExpiry(MemoryModuleType.DANGER_DETECTED_RECENTLY, true, 80L);
+                 if (this.canStayRolledUp()) {
+                     this.rollUp();
+                 }
+-            } else if (source.is(DamageTypeTags.PANIC_ENVIRONMENTAL_CAUSES)) {
++            } else if (damagesource.is(DamageTypeTags.PANIC_ENVIRONMENTAL_CAUSES)) {
+                 this.rollOut();
+             }
++
+         }
++        return true; // CraftBukkit
+     }
+ 
+     @Override
+     public InteractionResult mobInteract(Player player, InteractionHand hand) {
+-        ItemStack itemStack = player.getItemInHand(hand);
+-        if (itemStack.is(Items.BRUSH) && this.brushOffScute()) {
+-            itemStack.hurtAndBreak(16, player, getSlotForHand(hand));
++        ItemStack itemstack = player.getItemInHand(hand);
++
++        if (itemstack.is(Items.BRUSH) && this.brushOffScute()) {
++            itemstack.hurtAndBreak(16, player, getSlotForHand(hand));
+             return InteractionResult.SUCCESS;
+         } else {
+-            return (InteractionResult)(this.isScared() ? InteractionResult.FAIL : super.mobInteract(player, hand));
++            return (InteractionResult) (this.isScared() ? InteractionResult.FAIL : super.mobInteract(player, hand));
+         }
+     }
+ 
+@@ -312,8 +333,14 @@
+         if (this.isBaby()) {
+             return false;
+         } else {
+-            if (this.level() instanceof ServerLevel serverLevel) {
+-                this.spawnAtLocation(serverLevel, new ItemStack(Items.ARMADILLO_SCUTE));
++            Level world = this.level();
++
++            if (world instanceof ServerLevel) {
++                ServerLevel worldserver = (ServerLevel) world;
++
++                this.forceDrops = true; // CraftBukkit
++                this.spawnAtLocation(worldserver, new ItemStack(Items.ARMADILLO_SCUTE));
++                this.forceDrops = false; // CraftBukkit
+                 this.gameEvent(GameEvent.ENTITY_INTERACT);
+                 this.playSound(SoundEvents.ARMADILLO_BRUSH);
+             }
+@@ -369,11 +396,13 @@
+                 if (!Armadillo.this.isScared()) {
+                     super.clientTick();
+                 }
++
+             }
+         };
+     }
+ 
+     public static enum ArmadilloState implements StringRepresentable {
++
+         IDLE("idle", false, 0, 0) {
+             @Override
+             public boolean shouldHideInShell(long currentStateTicks) {
+@@ -400,24 +429,22 @@
+         };
+ 
+         private static final StringRepresentable.EnumCodec<Armadillo.ArmadilloState> CODEC = StringRepresentable.fromEnum(Armadillo.ArmadilloState::values);
+-        private static final IntFunction<Armadillo.ArmadilloState> BY_ID = ByIdMap.continuous(
+-            Armadillo.ArmadilloState::id, values(), ByIdMap.OutOfBoundsStrategy.ZERO
+-        );
+-        public static final StreamCodec<ByteBuf, Armadillo.ArmadilloState> STREAM_CODEC = ByteBufCodecs.idMapper(BY_ID, Armadillo.ArmadilloState::id);
++        private static final IntFunction<Armadillo.ArmadilloState> BY_ID = ByIdMap.continuous(Armadillo.ArmadilloState::id, values(), ByIdMap.OutOfBoundsStrategy.ZERO);
++        public static final StreamCodec<ByteBuf, Armadillo.ArmadilloState> STREAM_CODEC = ByteBufCodecs.idMapper(Armadillo.ArmadilloState.BY_ID, Armadillo.ArmadilloState::id);
+         private final String name;
+         private final boolean isThreatened;
+         private final int animationDuration;
+         private final int id;
+ 
+-        ArmadilloState(final String name, final boolean runRollUpTask, final int lengthInTicks, final int index) {
+-            this.name = name;
+-            this.isThreatened = runRollUpTask;
+-            this.animationDuration = lengthInTicks;
+-            this.id = index;
++        ArmadilloState(final String s, final boolean flag, final int i, final int j) {
++            this.name = s;
++            this.isThreatened = flag;
++            this.animationDuration = i;
++            this.id = j;
+         }
+ 
+         public static Armadillo.ArmadilloState fromName(String name) {
+-            return CODEC.byName(name, IDLE);
++            return (Armadillo.ArmadilloState) Armadillo.ArmadilloState.CODEC.byName(name, Armadillo.ArmadilloState.IDLE); // CraftBukkit - decompile error
+         }
+ 
+         @Override

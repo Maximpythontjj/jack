@@ -1,0 +1,176 @@
+--- a/net/minecraft/world/item/TridentItem.java
++++ b/net/minecraft/world/item/TridentItem.java
+@@ -13,6 +13,7 @@
+ import net.minecraft.util.Mth;
+ import net.minecraft.world.InteractionHand;
+ import net.minecraft.world.InteractionResult;
++import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EquipmentSlot;
+ import net.minecraft.world.entity.EquipmentSlotGroup;
+ import net.minecraft.world.entity.LivingEntity;
+@@ -32,6 +33,7 @@
+ import net.minecraft.world.phys.Vec3;
+ 
+ public class TridentItem extends Item implements ProjectileItem {
++
+     public static final int THROW_THRESHOLD_TIME = 10;
+     public static final float BASE_DAMAGE = 8.0F;
+     public static final float SHOOT_POWER = 2.5F;
+@@ -41,14 +43,7 @@
+     }
+ 
+     public static ItemAttributeModifiers createAttributes() {
+-        return ItemAttributeModifiers.builder()
+-            .add(
+-                Attributes.ATTACK_DAMAGE, new AttributeModifier(BASE_ATTACK_DAMAGE_ID, 8.0, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND
+-            )
+-            .add(
+-                Attributes.ATTACK_SPEED, new AttributeModifier(BASE_ATTACK_SPEED_ID, -2.9F, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND
+-            )
+-            .build();
++        return ItemAttributeModifiers.builder().add(Attributes.ATTACK_DAMAGE, new AttributeModifier(TridentItem.BASE_ATTACK_DAMAGE_ID, 8.0D, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND).add(Attributes.ATTACK_SPEED, new AttributeModifier(TridentItem.BASE_ATTACK_SPEED_ID, -2.9000000953674316D, AttributeModifier.Operation.ADD_VALUE), EquipmentSlotGroup.MAINHAND).build();
+     }
+ 
+     public static Tool createToolProperties() {
+@@ -72,55 +67,80 @@
+ 
+     @Override
+     public boolean releaseUsing(ItemStack stack, Level world, LivingEntity user, int remainingUseTicks) {
+-        if (user instanceof Player player) {
+-            int i = this.getUseDuration(stack, user) - remainingUseTicks;
+-            if (i < 10) {
++        if (user instanceof Player entityhuman) {
++            int j = this.getUseDuration(stack, user) - remainingUseTicks;
++
++            if (j < 10) {
+                 return false;
+             } else {
+-                float f = EnchantmentHelper.getTridentSpinAttackStrength(stack, player);
+-                if (f > 0.0F && !player.isInWaterOrRain()) {
++                float f = EnchantmentHelper.getTridentSpinAttackStrength(stack, entityhuman);
++
++                if (f > 0.0F && !entityhuman.isInWaterOrRain()) {
+                     return false;
+                 } else if (stack.nextDamageWillBreak()) {
+                     return false;
+                 } else {
+-                    Holder<SoundEvent> holder = EnchantmentHelper.pickHighestLevel(stack, EnchantmentEffectComponents.TRIDENT_SOUND)
+-                        .orElse(SoundEvents.TRIDENT_THROW);
+-                    if (world instanceof ServerLevel serverLevel) {
+-                        stack.hurtWithoutBreaking(1, player);
++                    Holder<SoundEvent> holder = (Holder) EnchantmentHelper.pickHighestLevel(stack, EnchantmentEffectComponents.TRIDENT_SOUND).orElse(SoundEvents.TRIDENT_THROW);
++
++                    if (world instanceof ServerLevel) {
++                        ServerLevel worldserver = (ServerLevel) world;
++
++                        // itemstack.hurtWithoutBreaking(1, entityhuman); // CraftBukkit - moved down
+                         if (f == 0.0F) {
+-                            ThrownTrident thrownTrident = Projectile.spawnProjectileFromRotation(
+-                                ThrownTrident::new, serverLevel, stack, player, 0.0F, 2.5F, 1.0F
+-                            );
+-                            if (player.hasInfiniteMaterials()) {
+-                                thrownTrident.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
+-                            } else {
+-                                player.getInventory().removeItem(stack);
++                            // Paper start - PlayerLaunchProjectileEvent
++                            Projectile.Delayed<ThrownTrident> tridentDelayed = Projectile.spawnProjectileFromRotationDelayed(ThrownTrident::new, worldserver, stack, entityhuman, 0.0F, 2.5F, 1.0F);
++                            // Paper start - PlayerLaunchProjectileEvent
++                            com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent event = new com.destroystokyo.paper.event.player.PlayerLaunchProjectileEvent((org.bukkit.entity.Player) entityhuman.getBukkitEntity(), org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(stack), (org.bukkit.entity.Projectile) tridentDelayed.projectile().getBukkitEntity());
++                            if (!event.callEvent() || !tridentDelayed.attemptSpawn()) {
++                                // CraftBukkit start
++                            // Paper end - PlayerLaunchProjectileEvent
++                                if (entityhuman instanceof net.minecraft.server.level.ServerPlayer) {
++                                    ((net.minecraft.server.level.ServerPlayer) entityhuman).getBukkitEntity().updateInventory();
++                                }
++                                return false;
+                             }
++                            ThrownTrident entitythrowntrident = tridentDelayed.projectile(); // Paper - PlayerLaunchProjectileEvent
++                            if (event.shouldConsume()) stack.hurtWithoutBreaking(1, entityhuman); // Paper - PlayerLaunchProjectileEvent
++                            entitythrowntrident.pickupItemStack = stack.copy(); // SPIGOT-4511 update since damage call moved
++                            // CraftBukkit end
+ 
+-                            world.playSound(null, thrownTrident, holder.value(), SoundSource.PLAYERS, 1.0F, 1.0F);
++                            if (entityhuman.hasInfiniteMaterials()) {
++                                entitythrowntrident.pickup = AbstractArrow.Pickup.CREATIVE_ONLY;
++                            } else if (event.shouldConsume()) { // Paper - PlayerLaunchProjectileEvent
++                                entityhuman.getInventory().removeItem(stack);
++                            }
++
++                            world.playSound((Player) null, (Entity) entitythrowntrident, (SoundEvent) holder.value(), SoundSource.PLAYERS, 1.0F, 1.0F);
+                             return true;
++                            // CraftBukkit start - SPIGOT-5458 also need in this branch :(
++                        } else {
++                            stack.hurtWithoutBreaking(1, entityhuman);
++                            // CraftBukkkit end
+                         }
+                     }
+ 
+-                    player.awardStat(Stats.ITEM_USED.get(this));
++                    entityhuman.awardStat(Stats.ITEM_USED.get(this));
+                     if (f > 0.0F) {
+-                        float g = player.getYRot();
+-                        float h = player.getXRot();
+-                        float j = -Mth.sin(g * (float) (Math.PI / 180.0)) * Mth.cos(h * (float) (Math.PI / 180.0));
+-                        float k = -Mth.sin(h * (float) (Math.PI / 180.0));
+-                        float l = Mth.cos(g * (float) (Math.PI / 180.0)) * Mth.cos(h * (float) (Math.PI / 180.0));
+-                        float m = Mth.sqrt(j * j + k * k + l * l);
+-                        j *= f / m;
+-                        k *= f / m;
+-                        l *= f / m;
+-                        player.push((double)j, (double)k, (double)l);
+-                        player.startAutoSpinAttack(20, 8.0F, stack);
+-                        if (player.onGround()) {
+-                            float n = 1.1999999F;
+-                            player.move(MoverType.SELF, new Vec3(0.0, 1.1999999F, 0.0));
++                        float f1 = entityhuman.getYRot();
++                        float f2 = entityhuman.getXRot();
++                        float f3 = -Mth.sin(f1 * 0.017453292F) * Mth.cos(f2 * 0.017453292F);
++                        float f4 = -Mth.sin(f2 * 0.017453292F);
++                        float f5 = Mth.cos(f1 * 0.017453292F) * Mth.cos(f2 * 0.017453292F);
++                        float f6 = Mth.sqrt(f3 * f3 + f4 * f4 + f5 * f5);
++
++                        f3 *= f / f6;
++                        f4 *= f / f6;
++                        f5 *= f / f6;
++                        org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerRiptideEvent(entityhuman, stack, f3, f4, f5); // CraftBukkit
++                        entityhuman.push((double) f3, (double) f4, (double) f5);
++                        entityhuman.startAutoSpinAttack(20, 8.0F, stack);
++                        if (entityhuman.onGround()) {
++                            float f7 = 1.1999999F;
++
++                            entityhuman.move(MoverType.SELF, new Vec3(0.0D, 1.1999999284744263D, 0.0D));
+                         }
+ 
+-                        world.playSound(null, player, holder.value(), SoundSource.PLAYERS, 1.0F, 1.0F);
++                        world.playSound((Player) null, (Entity) entityhuman, (SoundEvent) holder.value(), SoundSource.PLAYERS, 1.0F, 1.0F);
+                         return true;
+                     } else {
+                         return false;
+@@ -134,10 +154,11 @@
+ 
+     @Override
+     public InteractionResult use(Level world, Player user, InteractionHand hand) {
+-        ItemStack itemStack = user.getItemInHand(hand);
+-        if (itemStack.nextDamageWillBreak()) {
++        ItemStack itemstack = user.getItemInHand(hand);
++
++        if (itemstack.nextDamageWillBreak()) {
+             return InteractionResult.FAIL;
+-        } else if (EnchantmentHelper.getTridentSpinAttackStrength(itemStack, user) > 0.0F && !user.isInWaterOrRain()) {
++        } else if (EnchantmentHelper.getTridentSpinAttackStrength(itemstack, user) > 0.0F && !user.isInWaterOrRain()) {
+             return InteractionResult.FAIL;
+         } else {
+             user.startUsingItem(hand);
+@@ -157,8 +178,9 @@
+ 
+     @Override
+     public Projectile asProjectile(Level world, Position pos, ItemStack stack, Direction direction) {
+-        ThrownTrident thrownTrident = new ThrownTrident(world, pos.x(), pos.y(), pos.z(), stack.copyWithCount(1));
+-        thrownTrident.pickup = AbstractArrow.Pickup.ALLOWED;
+-        return thrownTrident;
++        ThrownTrident entitythrowntrident = new ThrownTrident(world, pos.x(), pos.y(), pos.z(), stack.copyWithCount(1));
++
++        entitythrowntrident.pickup = AbstractArrow.Pickup.ALLOWED;
++        return entitythrowntrident;
+     }
+ }

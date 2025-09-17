@@ -1,0 +1,55 @@
+--- a/net/minecraft/world/level/block/MagmaBlock.java
++++ b/net/minecraft/world/level/block/MagmaBlock.java
+@@ -14,12 +14,13 @@
+ import net.minecraft.world.level.block.state.BlockState;
+ 
+ public class MagmaBlock extends Block {
++
+     public static final MapCodec<MagmaBlock> CODEC = simpleCodec(MagmaBlock::new);
+     private static final int BUBBLE_COLUMN_CHECK_DELAY = 20;
+ 
+     @Override
+     public MapCodec<MagmaBlock> codec() {
+-        return CODEC;
++        return MagmaBlock.CODEC;
+     }
+ 
+     public MagmaBlock(BlockBehaviour.Properties settings) {
+@@ -29,7 +30,7 @@
+     @Override
+     public void stepOn(Level world, BlockPos pos, BlockState state, Entity entity) {
+         if (!entity.isSteppingCarefully() && entity instanceof LivingEntity) {
+-            entity.hurt(world.damageSources().hotFloor(), 1.0F);
++            entity.hurt(world.damageSources().hotFloor().directBlock(world, pos), 1.0F); // CraftBukkit
+         }
+ 
+         super.stepOn(world, pos, state, entity);
+@@ -41,18 +42,9 @@
+     }
+ 
+     @Override
+-    protected BlockState updateShape(
+-        BlockState state,
+-        LevelReader world,
+-        ScheduledTickAccess tickView,
+-        BlockPos pos,
+-        Direction direction,
+-        BlockPos neighborPos,
+-        BlockState neighborState,
+-        RandomSource random
+-    ) {
++    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess tickView, BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
+         if (direction == Direction.UP && neighborState.is(Blocks.WATER)) {
+-            tickView.scheduleTick(pos, this, 20);
++            tickView.scheduleTick(pos, (Block) this, 20);
+         }
+ 
+         return super.updateShape(state, world, tickView, pos, direction, neighborPos, neighborState, random);
+@@ -60,6 +52,6 @@
+ 
+     @Override
+     protected void onPlace(BlockState state, Level world, BlockPos pos, BlockState oldState, boolean notify) {
+-        world.scheduleTick(pos, this, 20);
++        world.scheduleTick(pos, (Block) this, 20);
+     }
+ }

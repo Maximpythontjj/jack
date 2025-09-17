@@ -1,0 +1,220 @@
+--- a/net/minecraft/world/inventory/ItemCombinerMenu.java
++++ b/net/minecraft/world/inventory/ItemCombinerMenu.java
+@@ -1,5 +1,6 @@
+ package net.minecraft.world.inventory;
+ 
++import java.util.Iterator;
+ import javax.annotation.Nullable;
+ import net.minecraft.world.Container;
+ import net.minecraft.world.SimpleContainer;
+@@ -9,18 +10,14 @@
+ import net.minecraft.world.level.block.state.BlockState;
+ 
+ public abstract class ItemCombinerMenu extends AbstractContainerMenu {
++
+     private static final int INVENTORY_SLOTS_PER_ROW = 9;
+     private static final int INVENTORY_ROWS = 3;
+     private static final int INPUT_SLOT_START = 0;
+     protected final ContainerLevelAccess access;
+     protected final Player player;
+     protected final Container inputSlots;
+-    protected final ResultContainer resultSlots = new ResultContainer() {
+-        @Override
+-        public void setChanged() {
+-            ItemCombinerMenu.this.slotsChanged(this);
+-        }
+-    };
++    protected final ResultContainer resultSlots; // Paper - Add missing InventoryHolders; delay field init
+     private final int resultSlotIndex;
+ 
+     protected boolean mayPickup(Player player, boolean present) {
+@@ -31,11 +28,17 @@
+ 
+     protected abstract boolean isValidBlock(BlockState state);
+ 
+-    public ItemCombinerMenu(
+-        @Nullable MenuType<?> type, int syncId, Inventory playerInventory, ContainerLevelAccess context, ItemCombinerMenuSlotDefinition forgingSlotsManager
+-    ) {
++    public ItemCombinerMenu(@Nullable MenuType<?> type, int syncId, Inventory playerInventory, ContainerLevelAccess context, ItemCombinerMenuSlotDefinition forgingSlotsManager) {
+         super(type, syncId);
+         this.access = context;
++        // Paper start - Add missing InventoryHolders; delay field init
++        this.resultSlots = new ResultContainer(this.createBlockHolder(this.access)) {
++            @Override
++            public void setChanged() {
++                ItemCombinerMenu.this.slotsChanged(this);
++            }
++        };
++        // Paper end - Add missing InventoryHolders; delay field init
+         this.player = playerInventory.player;
+         this.inputSlots = this.createContainer(forgingSlotsManager.getNumOfInputSlots());
+         this.resultSlotIndex = forgingSlotsManager.getResultSlotIndex();
+@@ -45,46 +48,44 @@
+     }
+ 
+     private void createInputSlots(ItemCombinerMenuSlotDefinition forgingSlotsManager) {
+-        for (final ItemCombinerMenuSlotDefinition.SlotDefinition slotDefinition : forgingSlotsManager.getSlots()) {
+-            this.addSlot(new Slot(this.inputSlots, slotDefinition.slotIndex(), slotDefinition.x(), slotDefinition.y()) {
++        Iterator iterator = forgingSlotsManager.getSlots().iterator();
++
++        while (iterator.hasNext()) {
++            final ItemCombinerMenuSlotDefinition.SlotDefinition itemcombinermenuslotdefinition_b = (ItemCombinerMenuSlotDefinition.SlotDefinition) iterator.next();
++
++            this.addSlot(new Slot(this.inputSlots, itemcombinermenuslotdefinition_b.slotIndex(), itemcombinermenuslotdefinition_b.x(), itemcombinermenuslotdefinition_b.y()) { // CraftBukkit - decompile error
+                 @Override
+                 public boolean mayPlace(ItemStack stack) {
+-                    return slotDefinition.mayPlace().test(stack);
++                    return itemcombinermenuslotdefinition_b.mayPlace().test(stack);
+                 }
+             });
+         }
++
+     }
+ 
+     private void createResultSlot(ItemCombinerMenuSlotDefinition forgingSlotsManager) {
+-        this.addSlot(
+-            new Slot(
+-                this.resultSlots,
+-                forgingSlotsManager.getResultSlot().slotIndex(),
+-                forgingSlotsManager.getResultSlot().x(),
+-                forgingSlotsManager.getResultSlot().y()
+-            ) {
+-                @Override
+-                public boolean mayPlace(ItemStack stack) {
+-                    return false;
+-                }
++        this.addSlot(new Slot(this.resultSlots, forgingSlotsManager.getResultSlot().slotIndex(), forgingSlotsManager.getResultSlot().x(), forgingSlotsManager.getResultSlot().y()) {
++            @Override
++            public boolean mayPlace(ItemStack stack) {
++                return false;
++            }
+ 
+-                @Override
+-                public boolean mayPickup(Player playerEntity) {
+-                    return ItemCombinerMenu.this.mayPickup(playerEntity, this.hasItem());
+-                }
++            @Override
++            public boolean mayPickup(Player playerEntity) {
++                return ItemCombinerMenu.this.mayPickup(playerEntity, this.hasItem());
++            }
+ 
+-                @Override
+-                public void onTake(Player player, ItemStack stack) {
+-                    ItemCombinerMenu.this.onTake(player, stack);
+-                }
++            @Override
++            public void onTake(Player player, ItemStack stack) {
++                ItemCombinerMenu.this.onTake(player, stack);
+             }
+-        );
++        });
+     }
+ 
+     public abstract void createResult();
+ 
+     private SimpleContainer createContainer(int size) {
+-        return new SimpleContainer(size) {
++        return new SimpleContainer(this.createBlockHolder(this.access), size) {
+             @Override
+             public void setChanged() {
+                 super.setChanged();
+@@ -98,67 +99,75 @@
+         super.slotsChanged(inventory);
+         if (inventory == this.inputSlots) {
+             this.createResult();
++            org.bukkit.craftbukkit.event.CraftEventFactory.callPrepareResultEvent(this, this instanceof SmithingMenu ? 3 : 2); // Paper - Add PrepareResultEvent
+         }
++
+     }
+ 
+     @Override
+     public void removed(Player player) {
+         super.removed(player);
+-        this.access.execute((world, pos) -> this.clearContainer(player, this.inputSlots));
++        this.access.execute((world, blockposition) -> {
++            this.clearContainer(player, this.inputSlots);
++        });
+     }
+ 
+     @Override
+     public boolean stillValid(Player player) {
+-        return this.access.evaluate((world, pos) -> !this.isValidBlock(world.getBlockState(pos)) ? false : player.canInteractWithBlock(pos, 4.0), true);
++        if (!this.checkReachable) return true; // CraftBukkit
++        return (Boolean) this.access.evaluate((world, blockposition) -> {
++            return !this.isValidBlock(world.getBlockState(blockposition)) ? false : player.canInteractWithBlock(blockposition, 4.0D);
++        }, true);
+     }
+ 
+     @Override
+     public ItemStack quickMoveStack(Player player, int slot) {
+-        ItemStack itemStack = ItemStack.EMPTY;
+-        Slot slot2 = this.slots.get(slot);
+-        if (slot2 != null && slot2.hasItem()) {
+-            ItemStack itemStack2 = slot2.getItem();
+-            itemStack = itemStack2.copy();
+-            int i = this.getInventorySlotStart();
+-            int j = this.getUseRowEnd();
++        ItemStack itemstack = ItemStack.EMPTY;
++        Slot slot1 = (Slot) this.slots.get(slot);
++
++        if (slot1 != null && slot1.hasItem()) {
++            ItemStack itemstack1 = slot1.getItem();
++
++            itemstack = itemstack1.copy();
++            int j = this.getInventorySlotStart();
++            int k = this.getUseRowEnd();
++
+             if (slot == this.getResultSlot()) {
+-                if (!this.moveItemStackTo(itemStack2, i, j, true)) {
++                if (!this.moveItemStackTo(itemstack1, j, k, true)) {
+                     return ItemStack.EMPTY;
+                 }
+ 
+-                slot2.onQuickCraft(itemStack2, itemStack);
++                slot1.onQuickCraft(itemstack1, itemstack);
+             } else if (slot >= 0 && slot < this.getResultSlot()) {
+-                if (!this.moveItemStackTo(itemStack2, i, j, false)) {
++                if (!this.moveItemStackTo(itemstack1, j, k, false)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (this.canMoveIntoInputSlots(itemStack2) && slot >= this.getInventorySlotStart() && slot < this.getUseRowEnd()) {
+-                if (!this.moveItemStackTo(itemStack2, 0, this.getResultSlot(), false)) {
++            } else if (this.canMoveIntoInputSlots(itemstack1) && slot >= this.getInventorySlotStart() && slot < this.getUseRowEnd()) {
++                if (!this.moveItemStackTo(itemstack1, 0, this.getResultSlot(), false)) {
+                     return ItemStack.EMPTY;
+                 }
+             } else if (slot >= this.getInventorySlotStart() && slot < this.getInventorySlotEnd()) {
+-                if (!this.moveItemStackTo(itemStack2, this.getUseRowStart(), this.getUseRowEnd(), false)) {
++                if (!this.moveItemStackTo(itemstack1, this.getUseRowStart(), this.getUseRowEnd(), false)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (slot >= this.getUseRowStart()
+-                && slot < this.getUseRowEnd()
+-                && !this.moveItemStackTo(itemStack2, this.getInventorySlotStart(), this.getInventorySlotEnd(), false)) {
++            } else if (slot >= this.getUseRowStart() && slot < this.getUseRowEnd() && !this.moveItemStackTo(itemstack1, this.getInventorySlotStart(), this.getInventorySlotEnd(), false)) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            if (itemStack2.isEmpty()) {
+-                slot2.setByPlayer(ItemStack.EMPTY);
++            if (itemstack1.isEmpty()) {
++                slot1.setByPlayer(ItemStack.EMPTY);
+             } else {
+-                slot2.setChanged();
++                slot1.setChanged();
+             }
+ 
+-            if (itemStack2.getCount() == itemStack.getCount()) {
++            if (itemstack1.getCount() == itemstack.getCount()) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            slot2.onTake(player, itemStack2);
++            slot1.onTake(player, itemstack1);
+         }
+ 
+-        return itemStack;
++        return itemstack;
+     }
+ 
+     protected boolean canMoveIntoInputSlots(ItemStack stack) {

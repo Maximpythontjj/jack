@@ -1,0 +1,79 @@
+--- a/net/minecraft/world/level/redstone/DefaultRedstoneWireEvaluator.java
++++ b/net/minecraft/world/level/redstone/DefaultRedstoneWireEvaluator.java
+@@ -1,6 +1,7 @@
+ package net.minecraft.world.level.redstone;
+ 
+ import com.google.common.collect.Sets;
++import java.util.Iterator;
+ import java.util.Set;
+ import javax.annotation.Nullable;
+ import net.minecraft.core.BlockPos;
+@@ -8,8 +9,13 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.RedStoneWireBlock;
+ import net.minecraft.world.level.block.state.BlockState;
++// CraftBukkit start
++import org.bukkit.craftbukkit.block.CraftBlock;
++import org.bukkit.event.block.BlockRedstoneEvent;
++// CraftBukkit end
+ 
+ public class DefaultRedstoneWireEvaluator extends RedstoneWireEvaluator {
++
+     public DefaultRedstoneWireEvaluator(RedStoneWireBlock wire) {
+         super(wire);
+     }
+@@ -17,26 +23,47 @@
+     @Override
+     public void updatePowerStrength(Level world, BlockPos pos, BlockState state, @Nullable Orientation orientation, boolean blockAdded) {
+         int i = this.calculateTargetStrength(world, pos);
+-        if (state.getValue(RedStoneWireBlock.POWER) != i) {
++
++        // CraftBukkit start
++        int oldPower = state.getValue(RedStoneWireBlock.POWER);
++        if (oldPower != i) {
++            BlockRedstoneEvent event = new BlockRedstoneEvent(CraftBlock.at(world, pos), oldPower, i);
++            world.getCraftServer().getPluginManager().callEvent(event);
++
++            i = event.getNewCurrent();
++        }
++        if (oldPower != i) {
++            // CraftBukkit end
+             if (world.getBlockState(pos) == state) {
+-                world.setBlock(pos, state.setValue(RedStoneWireBlock.POWER, Integer.valueOf(i)), 2);
++                world.setBlock(pos, (BlockState) state.setValue(RedStoneWireBlock.POWER, i), 2);
+             }
+ 
+             Set<BlockPos> set = Sets.newHashSet();
++
+             set.add(pos);
++            Direction[] aenumdirection = Direction.values();
++            int j = aenumdirection.length;
+ 
+-            for (Direction direction : Direction.values()) {
+-                set.add(pos.relative(direction));
++            for (int k = 0; k < j; ++k) {
++                Direction enumdirection = aenumdirection[k];
++
++                set.add(pos.relative(enumdirection));
+             }
+ 
+-            for (BlockPos blockPos : set) {
+-                world.updateNeighborsAt(blockPos, this.wireBlock);
++            Iterator iterator = set.iterator();
++
++            while (iterator.hasNext()) {
++                BlockPos blockposition1 = (BlockPos) iterator.next();
++
++                world.updateNeighborsAt(blockposition1, this.wireBlock);
+             }
+         }
++
+     }
+ 
+-    private int calculateTargetStrength(Level world, BlockPos pos) {
++    public int calculateTargetStrength(Level world, BlockPos pos) { // Paper - Optimize redstone
+         int i = this.getBlockSignal(world, pos);
++
+         return i == 15 ? i : Math.max(i, this.getIncomingWireSignal(world, pos));
+     }
+ }

@@ -1,0 +1,63 @@
+# Сообщения PotionMixer v1.0.0
+# Поддерживаются цветовые коды через &
+
+gui:
+  title: "&6Котёл"
+  result-unavailable: "&cНевозможно смешать: {reason}"
+
+messages:
+  success: "&aПолучено новое зелье!"
+  no-permission: "&cУ вас нет прав для использования этой команды!"
+  reloaded: "&aКонфигурация PotionMixer перезагружена!"
+  commands-disabled: "&cКоманды плагина отключены в конфигурации!"
+
+mixing:
+  not-a-potion: "&cОдин из предметов не является зельем"
+  duration-mismatch: "&cРазная длительность одинаковых эффектов"
+  amplifier-mismatch: "&cРазный уровень усиления одинаковых эффектов"
+  too-many-effects: "&cСлишком много эффектов (максимум {max})"
+  not-allowed-type: "&cТип зелья не разрешен для смешивания"
+  custom-effects-disabled: "&cКастомные эффекты запрещены"
+  empty-input: "&cНужно поместить зелья в оба слота"
+  same-potions: "&cНельзя смешивать одинаковые зелья"
+
+effects:
+  # Форматирование эффектов в описании зелья
+  format: "&7{effect} {level} ({duration})"
+  duration-format: "{minutes}:{seconds}"
+  infinite: "∞"
+  
+  # Названия эффектов на русском (опционально)
+  names:
+    SPEED: "Скорость"
+    SLOWNESS: "Медлительность"
+    HASTE: "Спешка"
+    MINING_FATIGUE: "Усталость"
+    STRENGTH: "Сила"
+    INSTANT_HEALTH: "Мгновенное лечение"
+    INSTANT_DAMAGE: "Мгновенный урон"
+    JUMP_BOOST: "Прыгучесть"
+    NAUSEA: "Тошнота"
+    REGENERATION: "Регенерация"
+    RESISTANCE: "Сопротивление"
+    FIRE_RESISTANCE: "Огнестойкость"
+    WATER_BREATHING: "Подводное дыхание"
+    INVISIBILITY: "Невидимость"
+    BLINDNESS: "Слепота"
+    NIGHT_VISION: "Ночное зрение"
+    HUNGER: "Голод"
+    WEAKNESS: "Слабость"
+    POISON: "Отравление"
+    WITHER: "Иссушение"
+    HEALTH_BOOST: "Повышение здоровья"
+    ABSORPTION: "Поглощение"
+    SATURATION: "Насыщение"
+    GLOWING: "Свечение"
+    LEVITATION: "Левитация"
+    LUCK: "Удача"
+    UNLUCK: "Невезение"
+    SLOW_FALLING: "Медленное падение"
+    CONDUIT_POWER: "Сила проводника"
+    DOLPHINS_GRACE: "Грация дельфина"
+    BAD_OMEN: "Дурное знамение"
+    HERO_OF_THE_VILLAGE: "Герой деревни"

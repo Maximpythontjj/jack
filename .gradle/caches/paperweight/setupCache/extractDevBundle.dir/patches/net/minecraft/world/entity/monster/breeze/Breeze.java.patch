@@ -1,0 +1,219 @@
+--- a/net/minecraft/world/entity/monster/breeze/Breeze.java
++++ b/net/minecraft/world/entity/monster/breeze/Breeze.java
+@@ -26,6 +26,7 @@
+ import net.minecraft.world.entity.ai.attributes.Attributes;
+ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+ import net.minecraft.world.entity.monster.Monster;
++import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.entity.projectile.Projectile;
+ import net.minecraft.world.entity.projectile.ProjectileDeflection;
+ import net.minecraft.world.level.Level;
+@@ -35,6 +36,7 @@
+ import net.minecraft.world.phys.Vec3;
+ 
+ public class Breeze extends Monster {
++
+     private static final int SLIDE_PARTICLES_AMOUNT = 20;
+     private static final int IDLE_PARTICLES_AMOUNT = 1;
+     private static final int JUMP_DUST_PARTICLES_AMOUNT = 20;
+@@ -52,17 +54,13 @@
+     public AnimationState inhale = new AnimationState();
+     private int jumpTrailStartedTick = 0;
+     private int soundTick = 0;
+-    private static final ProjectileDeflection PROJECTILE_DEFLECTION = (projectile, hitEntity, random) -> {
+-        hitEntity.level().playSound(null, hitEntity, SoundEvents.BREEZE_DEFLECT, hitEntity.getSoundSource(), 1.0F, 1.0F);
+-        ProjectileDeflection.REVERSE.deflect(projectile, hitEntity, random);
++    private static final ProjectileDeflection PROJECTILE_DEFLECTION = (iprojectile, entity, randomsource) -> {
++        entity.level().playSound((Player) null, entity, SoundEvents.BREEZE_DEFLECT, entity.getSoundSource(), 1.0F, 1.0F);
++        ProjectileDeflection.REVERSE.deflect(iprojectile, entity, randomsource);
+     };
+ 
+     public static AttributeSupplier.Builder createAttributes() {
+-        return Mob.createMobAttributes()
+-            .add(Attributes.MOVEMENT_SPEED, 0.63F)
+-            .add(Attributes.MAX_HEALTH, 30.0)
+-            .add(Attributes.FOLLOW_RANGE, 24.0)
+-            .add(Attributes.ATTACK_DAMAGE, 3.0);
++        return Mob.createMobAttributes().add(Attributes.MOVEMENT_SPEED, 0.6299999952316284D).add(Attributes.MAX_HEALTH, 30.0D).add(Attributes.FOLLOW_RANGE, 24.0D).add(Attributes.ATTACK_DAMAGE, 3.0D);
+     }
+ 
+     public Breeze(EntityType<? extends Monster> type, Level world) {
+@@ -79,7 +77,7 @@
+ 
+     @Override
+     public Brain<Breeze> getBrain() {
+-        return (Brain<Breeze>)super.getBrain();
++        return (Brain<Breeze>) super.getBrain(); // CraftBukkit - decompile error
+     }
+ 
+     @Override
+@@ -89,10 +87,11 @@
+ 
+     @Override
+     public void onSyncedDataUpdated(EntityDataAccessor<?> data) {
+-        if (this.level().isClientSide() && DATA_POSE.equals(data)) {
++        if (this.level().isClientSide() && Breeze.DATA_POSE.equals(data)) {
+             this.resetAnimations();
+-            Pose pose = this.getPose();
+-            switch (pose) {
++            Pose entitypose = this.getPose();
++
++            switch (entitypose) {
+                 case SHOOTING:
+                     this.shoot.startIfStopped(this.tickCount);
+                     break;
+@@ -116,8 +115,9 @@
+ 
+     @Override
+     public void tick() {
+-        Pose pose = this.getPose();
+-        switch (pose) {
++        Pose entitypose = this.getPose();
++
++        switch (entitypose) {
+             case SHOOTING:
+             case INHALING:
+             case STANDING:
+@@ -131,12 +131,12 @@
+                 this.emitJumpTrailParticles();
+         }
+ 
+-        if (pose != Pose.SLIDING && this.slide.isStarted()) {
++        if (entitypose != Pose.SLIDING && this.slide.isStarted()) {
+             this.slideBack.start(this.tickCount);
+             this.slide.stop();
+         }
+ 
+-        if (pose == Pose.STANDING) {
++        if (entitypose == Pose.STANDING) {
+             this.idle.startIfStopped(this.tickCount);
+         }
+ 
+@@ -155,25 +155,28 @@
+ 
+     public void emitJumpTrailParticles() {
+         if (++this.jumpTrailStartedTick <= 5) {
+-            BlockState blockState = !this.getInBlockState().isAir() ? this.getInBlockState() : this.getBlockStateOn();
+-            Vec3 vec3 = this.getDeltaMovement();
+-            Vec3 vec32 = this.position().add(vec3).add(0.0, 0.1F, 0.0);
++            BlockState iblockdata = !this.getInBlockState().isAir() ? this.getInBlockState() : this.getBlockStateOn();
++            Vec3 vec3d = this.getDeltaMovement();
++            Vec3 vec3d1 = this.position().add(vec3d).add(0.0D, 0.10000000149011612D, 0.0D);
+ 
+-            for (int i = 0; i < 3; i++) {
+-                this.level().addParticle(new BlockParticleOption(ParticleTypes.BLOCK, blockState), vec32.x, vec32.y, vec32.z, 0.0, 0.0, 0.0);
++            for (int i = 0; i < 3; ++i) {
++                this.level().addParticle(new BlockParticleOption(ParticleTypes.BLOCK, iblockdata), vec3d1.x, vec3d1.y, vec3d1.z, 0.0D, 0.0D, 0.0D);
+             }
++
+         }
+     }
+ 
+     public void emitGroundParticles(int count) {
+         if (!this.isPassenger()) {
+-            Vec3 vec3 = this.getBoundingBox().getCenter();
+-            Vec3 vec32 = new Vec3(vec3.x, this.position().y, vec3.z);
+-            BlockState blockState = !this.getInBlockState().isAir() ? this.getInBlockState() : this.getBlockStateOn();
+-            if (blockState.getRenderShape() != RenderShape.INVISIBLE) {
+-                for (int i = 0; i < count; i++) {
+-                    this.level().addParticle(new BlockParticleOption(ParticleTypes.BLOCK, blockState), vec32.x, vec32.y, vec32.z, 0.0, 0.0, 0.0);
++            Vec3 vec3d = this.getBoundingBox().getCenter();
++            Vec3 vec3d1 = new Vec3(vec3d.x, this.position().y, vec3d.z);
++            BlockState iblockdata = !this.getInBlockState().isAir() ? this.getInBlockState() : this.getBlockStateOn();
++
++            if (iblockdata.getRenderShape() != RenderShape.INVISIBLE) {
++                for (int j = 0; j < count; ++j) {
++                    this.level().addParticle(new BlockParticleOption(ParticleTypes.BLOCK, iblockdata), vec3d1.x, vec3d1.y, vec3d1.z, 0.0D, 0.0D, 0.0D);
+                 }
++
+             }
+         }
+     }
+@@ -187,17 +190,14 @@
+ 
+     public void playWhirlSound() {
+         float f = 0.7F + 0.4F * this.random.nextFloat();
+-        float g = 0.8F + 0.2F * this.random.nextFloat();
+-        this.level().playLocalSound(this, SoundEvents.BREEZE_WHIRL, this.getSoundSource(), g, f);
++        float f1 = 0.8F + 0.2F * this.random.nextFloat();
++
++        this.level().playLocalSound(this, SoundEvents.BREEZE_WHIRL, this.getSoundSource(), f1, f);
+     }
+ 
+     @Override
+     public ProjectileDeflection deflection(Projectile projectile) {
+-        if (projectile.getType() != EntityType.BREEZE_WIND_CHARGE && projectile.getType() != EntityType.WIND_CHARGE) {
+-            return this.getType().is(EntityTypeTags.DEFLECTS_PROJECTILES) ? PROJECTILE_DEFLECTION : ProjectileDeflection.NONE;
+-        } else {
+-            return ProjectileDeflection.NONE;
+-        }
++        return projectile.getType() != EntityType.BREEZE_WIND_CHARGE && projectile.getType() != EntityType.WIND_CHARGE ? (this.getType().is(EntityTypeTags.DEFLECTS_PROJECTILES) ? Breeze.PROJECTILE_DEFLECTION : ProjectileDeflection.NONE) : ProjectileDeflection.NONE;
+     }
+ 
+     @Override
+@@ -221,26 +221,28 @@
+     }
+ 
+     public Optional<LivingEntity> getHurtBy() {
+-        return this.getBrain()
+-            .getMemory(MemoryModuleType.HURT_BY)
+-            .map(DamageSource::getEntity)
+-            .filter(attacker -> attacker instanceof LivingEntity)
+-            .map(livingAttacker -> (LivingEntity)livingAttacker);
++        return this.getBrain().getMemory(MemoryModuleType.HURT_BY).map(DamageSource::getEntity).filter((entity) -> {
++            return entity instanceof LivingEntity;
++        }).map((entity) -> {
++            return (LivingEntity) entity;
++        });
+     }
+ 
+     public boolean withinInnerCircleRange(Vec3 pos) {
+-        Vec3 vec3 = this.blockPosition().getCenter();
+-        return pos.closerThan(vec3, 4.0, 10.0);
++        Vec3 vec3d1 = this.blockPosition().getCenter();
++
++        return pos.closerThan(vec3d1, 4.0D, 10.0D);
+     }
+ 
+     @Override
+     protected void customServerAiStep(ServerLevel world) {
+-        ProfilerFiller profilerFiller = Profiler.get();
+-        profilerFiller.push("breezeBrain");
++        ProfilerFiller gameprofilerfiller = Profiler.get();
++
++        gameprofilerfiller.push("breezeBrain");
+         this.getBrain().tick(world, this);
+-        profilerFiller.popPush("breezeActivityUpdate");
++        gameprofilerfiller.popPush("breezeActivityUpdate");
+         BreezeAi.updateActivity(this);
+-        profilerFiller.pop();
++        gameprofilerfiller.pop();
+         super.customServerAiStep(world);
+     }
+ 
+@@ -253,6 +255,7 @@
+ 
+     @Override
+     public boolean canAttackType(EntityType<?> type) {
++        if (this.getTarget() != null) return this.getTarget().getType() == type; // SPIGOT-7957: Allow attack if target from brain was set
+         return type == EntityType.PLAYER || type == EntityType.IRON_GOLEM;
+     }
+ 
+@@ -267,7 +270,7 @@
+     }
+ 
+     public double getFiringYPosition() {
+-        return this.getY() + (double)(this.getBbHeight() / 2.0F) + 0.3F;
++        return this.getY() + (double) (this.getBbHeight() / 2.0F) + 0.30000001192092896D;
+     }
+ 
+     @Override
+@@ -277,7 +280,7 @@
+ 
+     @Override
+     public double getFluidJumpThreshold() {
+-        return (double)this.getEyeHeight();
++        return (double) this.getEyeHeight();
+     }
+ 
+     @Override

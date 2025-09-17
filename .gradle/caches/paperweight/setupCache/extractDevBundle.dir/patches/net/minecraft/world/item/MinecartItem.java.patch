@@ -1,0 +1,99 @@
+--- a/net/minecraft/world/item/MinecartItem.java
++++ b/net/minecraft/world/item/MinecartItem.java
+@@ -1,6 +1,9 @@
+ package net.minecraft.world.item;
+ 
++import java.util.Iterator;
++import java.util.List;
+ import net.minecraft.core.BlockPos;
++import net.minecraft.core.Holder;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.tags.BlockTags;
+ import net.minecraft.world.InteractionResult;
+@@ -17,6 +20,7 @@
+ import net.minecraft.world.phys.Vec3;
+ 
+ public class MinecartItem extends Item {
++
+     private final EntityType<? extends AbstractMinecart> type;
+ 
+     public MinecartItem(EntityType<? extends AbstractMinecart> type, Item.Properties settings) {
+@@ -26,44 +30,54 @@
+ 
+     @Override
+     public InteractionResult useOn(UseOnContext context) {
+-        Level level = context.getLevel();
+-        BlockPos blockPos = context.getClickedPos();
+-        BlockState blockState = level.getBlockState(blockPos);
+-        if (!blockState.is(BlockTags.RAILS)) {
++        Level world = context.getLevel();
++        BlockPos blockposition = context.getClickedPos();
++        BlockState iblockdata = world.getBlockState(blockposition);
++
++        if (!iblockdata.is(BlockTags.RAILS)) {
+             return InteractionResult.FAIL;
+         } else {
+-            ItemStack itemStack = context.getItemInHand();
+-            RailShape railShape = blockState.getBlock() instanceof BaseRailBlock
+-                ? blockState.getValue(((BaseRailBlock)blockState.getBlock()).getShapeProperty())
+-                : RailShape.NORTH_SOUTH;
+-            double d = 0.0;
+-            if (railShape.isSlope()) {
+-                d = 0.5;
++            ItemStack itemstack = context.getItemInHand();
++            RailShape blockpropertytrackposition = iblockdata.getBlock() instanceof BaseRailBlock ? (RailShape) iblockdata.getValue(((BaseRailBlock) iblockdata.getBlock()).getShapeProperty()) : RailShape.NORTH_SOUTH;
++            double d0 = 0.0D;
++
++            if (blockpropertytrackposition.isSlope()) {
++                d0 = 0.5D;
+             }
+ 
+-            Vec3 vec3 = new Vec3((double)blockPos.getX() + 0.5, (double)blockPos.getY() + 0.0625 + d, (double)blockPos.getZ() + 0.5);
+-            AbstractMinecart abstractMinecart = AbstractMinecart.createMinecart(
+-                level, vec3.x, vec3.y, vec3.z, this.type, EntitySpawnReason.DISPENSER, itemStack, context.getPlayer()
+-            );
+-            if (abstractMinecart == null) {
++            Vec3 vec3d = new Vec3((double) blockposition.getX() + 0.5D, (double) blockposition.getY() + 0.0625D + d0, (double) blockposition.getZ() + 0.5D);
++            AbstractMinecart entityminecartabstract = AbstractMinecart.createMinecart(world, vec3d.x, vec3d.y, vec3d.z, this.type, EntitySpawnReason.DISPENSER, itemstack, context.getPlayer());
++
++            if (entityminecartabstract == null) {
+                 return InteractionResult.FAIL;
+             } else {
+-                if (AbstractMinecart.useExperimentalMovement(level)) {
+-                    for (Entity entity : level.getEntities(null, abstractMinecart.getBoundingBox())) {
++                if (AbstractMinecart.useExperimentalMovement(world)) {
++                    List<Entity> list = world.getEntities((Entity) null, entityminecartabstract.getBoundingBox());
++                    Iterator iterator = list.iterator();
++
++                    while (iterator.hasNext()) {
++                        Entity entity = (Entity) iterator.next();
++
+                         if (entity instanceof AbstractMinecart) {
+                             return InteractionResult.FAIL;
+                         }
+                     }
+                 }
+ 
+-                if (level instanceof ServerLevel serverLevel) {
+-                    serverLevel.addFreshEntity(abstractMinecart);
+-                    serverLevel.gameEvent(
+-                        GameEvent.ENTITY_PLACE, blockPos, GameEvent.Context.of(context.getPlayer(), serverLevel.getBlockState(blockPos.below()))
+-                    );
++                if (world instanceof ServerLevel) {
++                    ServerLevel worldserver = (ServerLevel) world;
++
++                    // CraftBukkit start
++                    if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityPlaceEvent(context, entityminecartabstract).isCancelled()) {
++                    if (context.getPlayer() != null) context.getPlayer().containerMenu.sendAllDataToRemote(); // Paper - Fix inventory desync
++                        return InteractionResult.FAIL;
++                    }
++                    // CraftBukkit end
++                    if (!worldserver.addFreshEntity(entityminecartabstract)) return InteractionResult.PASS; // CraftBukkit
++                    worldserver.gameEvent((Holder) GameEvent.ENTITY_PLACE, blockposition, GameEvent.Context.of(context.getPlayer(), worldserver.getBlockState(blockposition.below())));
+                 }
+ 
+-                itemStack.shrink(1);
++                itemstack.shrink(1);
+                 return InteractionResult.SUCCESS;
+             }
+         }

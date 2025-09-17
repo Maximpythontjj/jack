@@ -1,0 +1,14 @@
+--- a/net/minecraft/world/level/redstone/ExperimentalRedstoneUtils.java
++++ b/net/minecraft/world/level/redstone/ExperimentalRedstoneUtils.java
+@@ -17,6 +17,11 @@
+             if (up != null) {
+                 orientation = orientation.withFront(up);
+             }
++            // Paper start - Optimize redstone (Alternate Current) - use default front instead of random
++            else if (world.paperConfig().misc.redstoneImplementation == io.papermc.paper.configuration.WorldConfiguration.Misc.RedstoneImplementation.ALTERNATE_CURRENT) {
++                orientation = orientation.withFront(Direction.WEST);
++            }
++            // Paper end - Optimize redstone (Alternate Current)
+ 
+             return orientation;
+         } else {

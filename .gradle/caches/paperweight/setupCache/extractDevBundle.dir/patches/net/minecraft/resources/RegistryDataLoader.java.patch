@@ -1,0 +1,140 @@
+--- a/net/minecraft/resources/RegistryDataLoader.java
++++ b/net/minecraft/resources/RegistryDataLoader.java
+@@ -74,7 +74,7 @@
+ 
+ public class RegistryDataLoader {
+     private static final Logger LOGGER = LogUtils.getLogger();
+-    private static final Comparator<ResourceKey<?>> ERROR_KEY_COMPARATOR = Comparator.comparing(ResourceKey::registry).thenComparing(ResourceKey::location);
++    private static final Comparator<ResourceKey<?>> ERROR_KEY_COMPARATOR = Comparator.<ResourceKey<?>, ResourceLocation>comparing(ResourceKey::registry).thenComparing(ResourceKey::location); // Paper - decompile fix
+     private static final RegistrationInfo NETWORK_REGISTRATION_INFO = new RegistrationInfo(Optional.empty(), Lifecycle.experimental());
+     private static final Function<Optional<KnownPack>, RegistrationInfo> REGISTRATION_INFO_CACHE = Util.memoize(knownPacks -> {
+         Lifecycle lifecycle = knownPacks.map(KnownPack::isVanilla).map(vanilla -> Lifecycle.stable()).orElse(Lifecycle.experimental());
+@@ -130,7 +130,7 @@
+     public static RegistryAccess.Frozen load(
+         ResourceManager resourceManager, List<HolderLookup.RegistryLookup<?>> registries, List<RegistryDataLoader.RegistryData<?>> entries
+     ) {
+-        return load((loader, infoGetter) -> loader.loadFromResources(resourceManager, infoGetter), registries, entries);
++        return load((loader, infoGetter, conversions) -> loader.loadFromResources(resourceManager, infoGetter, conversions), registries, entries); // Paper - pass conversions
+     }
+ 
+     public static RegistryAccess.Frozen load(
+@@ -139,7 +139,7 @@
+         List<HolderLookup.RegistryLookup<?>> registries,
+         List<RegistryDataLoader.RegistryData<?>> entries
+     ) {
+-        return load((loader, infoGetter) -> loader.loadFromNetwork(data, factory, infoGetter), registries, entries);
++        return load((loader, infoGetter, conversions) -> loader.loadFromNetwork(data, factory, infoGetter, conversions), registries, entries); // Paper - pass conversions
+     }
+ 
+     private static RegistryAccess.Frozen load(
+@@ -148,7 +148,8 @@
+         Map<ResourceKey<?>, Exception> map = new HashMap<>();
+         List<RegistryDataLoader.Loader<?>> list = entries.stream().map(entry -> entry.create(Lifecycle.stable(), map)).collect(Collectors.toUnmodifiableList());
+         RegistryOps.RegistryInfoLookup registryInfoLookup = createContext(registries, list);
+-        list.forEach(loader -> loadable.apply((RegistryDataLoader.Loader<?>)loader, registryInfoLookup));
++        final io.papermc.paper.registry.data.util.Conversions conversions = new io.papermc.paper.registry.data.util.Conversions(registryInfoLookup); // Paper - create conversions
++        list.forEach(loader -> loadable.apply((RegistryDataLoader.Loader<?>)loader, registryInfoLookup, conversions));
+         list.forEach(loader -> {
+             Registry<?> registry = loader.registry();
+ 
+@@ -238,13 +239,13 @@
+     }
+ 
+     private static <E> void loadElementFromResource(
+-        WritableRegistry<E> registry, Decoder<E> decoder, RegistryOps<JsonElement> ops, ResourceKey<E> key, Resource resource, RegistrationInfo entryInfo
++        WritableRegistry<E> registry, Decoder<E> decoder, RegistryOps<JsonElement> ops, ResourceKey<E> key, Resource resource, RegistrationInfo entryInfo, io.papermc.paper.registry.data.util.Conversions conversions
+     ) throws IOException {
+         try (Reader reader = resource.openAsReader()) {
+             JsonElement jsonElement = JsonParser.parseReader(reader);
+             DataResult<E> dataResult = decoder.parse(ops, jsonElement);
+             E object = dataResult.getOrThrow();
+-            registry.register(key, object, entryInfo);
++            io.papermc.paper.registry.PaperRegistryListenerManager.INSTANCE.registerWithListeners(registry, key, object, entryInfo, conversions); // Paper - register with listeners
+         }
+     }
+ 
+@@ -253,7 +254,8 @@
+         RegistryOps.RegistryInfoLookup infoGetter,
+         WritableRegistry<E> registry,
+         Decoder<E> elementDecoder,
+-        Map<ResourceKey<?>, Exception> errors
++        Map<ResourceKey<?>, Exception> errors,
++        io.papermc.paper.registry.data.util.Conversions conversions // Paper - pass conversions
+     ) {
+         String string = Registries.elementsDirPath(registry.key());
+         FileToIdConverter fileToIdConverter = FileToIdConverter.json(string);
+@@ -266,7 +268,7 @@
+             RegistrationInfo registrationInfo = REGISTRATION_INFO_CACHE.apply(resource.knownPackInfo());
+ 
+             try {
+-                loadElementFromResource(registry, elementDecoder, registryOps, resourceKey, resource, registrationInfo);
++                loadElementFromResource(registry, elementDecoder, registryOps, resourceKey, resource, registrationInfo, conversions); // Paper - pass conversions
+             } catch (Exception var15) {
+                 errors.put(
+                     resourceKey,
+@@ -275,7 +277,8 @@
+             }
+         }
+ 
+-        TagLoader.loadTagsForRegistry(resourceManager, registry);
++        io.papermc.paper.registry.PaperRegistryListenerManager.INSTANCE.runFreezeListeners(registry.key(), conversions); // Paper - run pre-freeze listeners
++        TagLoader.loadTagsForRegistry(resourceManager, registry, io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEvent.Cause.INITIAL); // Paper - tag lifecycle - add cause
+     }
+ 
+     static <E> void loadContentsFromNetwork(
+@@ -284,7 +287,8 @@
+         RegistryOps.RegistryInfoLookup infoGetter,
+         WritableRegistry<E> registry,
+         Decoder<E> decoder,
+-        Map<ResourceKey<?>, Exception> loadingErrors
++        Map<ResourceKey<?>, Exception> loadingErrors,
++        io.papermc.paper.registry.data.util.Conversions conversions // Paper - pass conversions
+     ) {
+         RegistryDataLoader.NetworkedRegistryData networkedRegistryData = data.get(registry.key());
+         if (networkedRegistryData != null) {
+@@ -311,7 +315,7 @@
+ 
+                     try {
+                         Resource resource = factory.getResourceOrThrow(resourceLocation);
+-                        loadElementFromResource(registry, decoder, registryOps2, resourceKey, resource, NETWORK_REGISTRATION_INFO);
++                        loadElementFromResource(registry, decoder, registryOps2, resourceKey, resource, NETWORK_REGISTRATION_INFO, conversions); // Paper - pass conversions
+                     } catch (Exception var18) {
+                         loadingErrors.put(resourceKey, new IllegalStateException("Failed to parse local data", var18));
+                     }
+@@ -323,22 +327,23 @@
+     }
+ 
+     static record Loader<T>(RegistryDataLoader.RegistryData<T> data, WritableRegistry<T> registry, Map<ResourceKey<?>, Exception> loadingErrors) {
+-        public void loadFromResources(ResourceManager resourceManager, RegistryOps.RegistryInfoLookup infoGetter) {
+-            RegistryDataLoader.loadContentsFromManager(resourceManager, infoGetter, this.registry, this.data.elementCodec, this.loadingErrors);
++        public void loadFromResources(ResourceManager resourceManager, RegistryOps.RegistryInfoLookup infoGetter, io.papermc.paper.registry.data.util.Conversions conversions) { // Paper - pass conversions
++            RegistryDataLoader.loadContentsFromManager(resourceManager, infoGetter, this.registry, this.data.elementCodec, this.loadingErrors, conversions); // Paper - pass conversions
+         }
+ 
+         public void loadFromNetwork(
+             Map<ResourceKey<? extends Registry<?>>, RegistryDataLoader.NetworkedRegistryData> data,
+             ResourceProvider factory,
+-            RegistryOps.RegistryInfoLookup infoGetter
++            RegistryOps.RegistryInfoLookup infoGetter,
++            io.papermc.paper.registry.data.util.Conversions conversions // Paper
+         ) {
+-            RegistryDataLoader.loadContentsFromNetwork(data, factory, infoGetter, this.registry, this.data.elementCodec, this.loadingErrors);
++            RegistryDataLoader.loadContentsFromNetwork(data, factory, infoGetter, this.registry, this.data.elementCodec, this.loadingErrors, conversions); // Paper - pass conversions
+         }
+     }
+ 
+     @FunctionalInterface
+     interface LoadingFunction {
+-        void apply(RegistryDataLoader.Loader<?> loader, RegistryOps.RegistryInfoLookup infoGetter);
++        void apply(RegistryDataLoader.Loader<?> loader, RegistryOps.RegistryInfoLookup infoGetter, io.papermc.paper.registry.data.util.Conversions conversions); // Paper - pass conversions
+     }
+ 
+     public static record NetworkedRegistryData(List<RegistrySynchronization.PackedRegistryEntry> elements, TagNetworkSerialization.NetworkPayload tags) {
+@@ -351,6 +356,7 @@
+ 
+         RegistryDataLoader.Loader<T> create(Lifecycle lifecycle, Map<ResourceKey<?>, Exception> errors) {
+             WritableRegistry<T> writableRegistry = new MappedRegistry<>(this.key, lifecycle);
++            io.papermc.paper.registry.PaperRegistryAccess.instance().registerRegistry(this.key, writableRegistry); // Paper - initialize API registry
+             return new RegistryDataLoader.Loader<>(this, writableRegistry, errors);
+         }
+ 

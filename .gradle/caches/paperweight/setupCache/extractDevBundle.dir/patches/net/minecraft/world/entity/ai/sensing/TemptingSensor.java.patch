@@ -1,0 +1,84 @@
+--- a/net/minecraft/world/entity/ai/sensing/TemptingSensor.java
++++ b/net/minecraft/world/entity/ai/sensing/TemptingSensor.java
+@@ -3,10 +3,13 @@
+ import com.google.common.collect.ImmutableSet;
+ import java.util.Comparator;
+ import java.util.List;
++import java.util.Objects;
+ import java.util.Set;
+ import java.util.function.Predicate;
+ import java.util.stream.Collectors;
++import java.util.stream.Stream;
+ import net.minecraft.server.level.ServerLevel;
++import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.EntitySelector;
+ import net.minecraft.world.entity.PathfinderMob;
+ import net.minecraft.world.entity.ai.Brain;
+@@ -16,7 +19,16 @@
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.ItemStack;
+ 
++// CraftBukkit start
++import org.bukkit.craftbukkit.entity.CraftHumanEntity;
++import org.bukkit.craftbukkit.event.CraftEventFactory;
++import org.bukkit.entity.HumanEntity;
++import org.bukkit.event.entity.EntityTargetEvent;
++import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
++// CraftBukkit end
++
+ public class TemptingSensor extends Sensor<PathfinderMob> {
++
+     private static final TargetingConditions TEMPT_TARGETING = TargetingConditions.forNonCombat().ignoreLineOfSight();
+     private final Predicate<ItemStack> temptations;
+ 
+@@ -24,24 +36,36 @@
+         this.temptations = predicate;
+     }
+ 
+-    @Override
+     protected void doTick(ServerLevel world, PathfinderMob entity) {
+-        Brain<?> brain = entity.getBrain();
+-        TargetingConditions targetingConditions = TEMPT_TARGETING.copy().range((double)((float)entity.getAttributeValue(Attributes.TEMPT_RANGE)));
+-        List<Player> list = world.players()
+-            .stream()
+-            .filter(EntitySelector.NO_SPECTATORS)
+-            .filter(playerx -> targetingConditions.test(world, entity, playerx))
+-            .filter(this::playerHoldingTemptation)
+-            .filter(playerx -> !entity.hasPassenger(playerx))
+-            .sorted(Comparator.comparingDouble(entity::distanceToSqr))
+-            .collect(Collectors.toList());
++        Brain<?> behaviorcontroller = entity.getBrain();
++        TargetingConditions pathfindertargetcondition = TemptingSensor.TEMPT_TARGETING.copy().range((double) ((float) entity.getAttributeValue(Attributes.TEMPT_RANGE)));
++        Stream<net.minecraft.server.level.ServerPlayer> stream = world.players().stream().filter(EntitySelector.NO_SPECTATORS).filter((entityplayer) -> { // CraftBukkit - decompile error
++            return pathfindertargetcondition.test(world, entity, entityplayer);
++        }).filter(this::playerHoldingTemptation).filter((entityplayer) -> {
++            return !entity.hasPassenger((Entity) entityplayer);
++        });
++
++        Objects.requireNonNull(entity);
++        List<Player> list = (List) stream.sorted(Comparator.comparingDouble(entity::distanceToSqr)).collect(Collectors.toList());
++
+         if (!list.isEmpty()) {
+-            Player player = list.get(0);
+-            brain.setMemory(MemoryModuleType.TEMPTING_PLAYER, player);
++            Player entityhuman = (Player) list.get(0);
++
++            // CraftBukkit start
++            EntityTargetLivingEntityEvent event = CraftEventFactory.callEntityTargetLivingEvent(entity, entityhuman, EntityTargetEvent.TargetReason.TEMPT);
++            if (event.isCancelled()) {
++                return;
++            }
++            if (event.getTarget() instanceof HumanEntity) {
++                behaviorcontroller.setMemory(MemoryModuleType.TEMPTING_PLAYER, ((CraftHumanEntity) event.getTarget()).getHandle());
++            } else {
++                behaviorcontroller.eraseMemory(MemoryModuleType.TEMPTING_PLAYER);
++            }
++            // CraftBukkit end
+         } else {
+-            brain.eraseMemory(MemoryModuleType.TEMPTING_PLAYER);
++            behaviorcontroller.eraseMemory(MemoryModuleType.TEMPTING_PLAYER);
+         }
++
+     }
+ 
+     private boolean playerHoldingTemptation(Player player) {

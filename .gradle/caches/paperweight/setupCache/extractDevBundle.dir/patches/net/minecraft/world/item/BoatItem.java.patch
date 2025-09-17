@@ -1,0 +1,130 @@
+--- a/net/minecraft/world/item/BoatItem.java
++++ b/net/minecraft/world/item/BoatItem.java
+@@ -1,7 +1,9 @@
+ package net.minecraft.world.item;
+ 
++import java.util.Iterator;
+ import java.util.List;
+ import javax.annotation.Nullable;
++import net.minecraft.core.Holder;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.stats.Stats;
+ import net.minecraft.world.InteractionHand;
+@@ -16,10 +18,12 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.gameevent.GameEvent;
+ import net.minecraft.world.phys.AABB;
++import net.minecraft.world.phys.BlockHitResult;
+ import net.minecraft.world.phys.HitResult;
+ import net.minecraft.world.phys.Vec3;
+ 
+ public class BoatItem extends Item {
++
+     private final EntityType<? extends AbstractBoat> entityType;
+ 
+     public BoatItem(EntityType<? extends AbstractBoat> boatEntityType, Item.Properties settings) {
+@@ -29,38 +33,59 @@
+ 
+     @Override
+     public InteractionResult use(Level world, Player user, InteractionHand hand) {
+-        ItemStack itemStack = user.getItemInHand(hand);
+-        HitResult hitResult = getPlayerPOVHitResult(world, user, ClipContext.Fluid.ANY);
+-        if (hitResult.getType() == HitResult.Type.MISS) {
++        ItemStack itemstack = user.getItemInHand(hand);
++        BlockHitResult movingobjectpositionblock = getPlayerPOVHitResult(world, user, ClipContext.Fluid.ANY);
++
++        if (movingobjectpositionblock.getType() == HitResult.Type.MISS) {
+             return InteractionResult.PASS;
+         } else {
+-            Vec3 vec3 = user.getViewVector(1.0F);
+-            double d = 5.0;
+-            List<Entity> list = world.getEntities(user, user.getBoundingBox().expandTowards(vec3.scale(5.0)).inflate(1.0), EntitySelector.CAN_BE_PICKED);
++            Vec3 vec3d = user.getViewVector(1.0F);
++            double d0 = 5.0D;
++            List<Entity> list = world.getEntities((Entity) user, user.getBoundingBox().expandTowards(vec3d.scale(5.0D)).inflate(1.0D), EntitySelector.CAN_BE_PICKED);
++
+             if (!list.isEmpty()) {
+-                Vec3 vec32 = user.getEyePosition();
++                Vec3 vec3d1 = user.getEyePosition();
++                Iterator iterator = list.iterator();
+ 
+-                for (Entity entity : list) {
+-                    AABB aABB = entity.getBoundingBox().inflate((double)entity.getPickRadius());
+-                    if (aABB.contains(vec32)) {
++                while (iterator.hasNext()) {
++                    Entity entity = (Entity) iterator.next();
++                    AABB axisalignedbb = entity.getBoundingBox().inflate((double) entity.getPickRadius());
++
++                    if (axisalignedbb.contains(vec3d1)) {
+                         return InteractionResult.PASS;
+                     }
+                 }
+             }
+ 
+-            if (hitResult.getType() == HitResult.Type.BLOCK) {
+-                AbstractBoat abstractBoat = this.getBoat(world, hitResult, itemStack, user);
+-                if (abstractBoat == null) {
++            if (movingobjectpositionblock.getType() == HitResult.Type.BLOCK) {
++                // CraftBukkit start - Boat placement
++                org.bukkit.event.player.PlayerInteractEvent event = org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerInteractEvent(user, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, movingobjectpositionblock.getBlockPos(), movingobjectpositionblock.getDirection(), itemstack, false, hand, movingobjectpositionblock.getLocation());
++
++                if (event.isCancelled()) {
++                    return InteractionResult.PASS;
++                }
++                // CraftBukkit end
++                AbstractBoat abstractboat = this.getBoat(world, movingobjectpositionblock, itemstack, user);
++
++                if (abstractboat == null) {
+                     return InteractionResult.FAIL;
+                 } else {
+-                    abstractBoat.setYRot(user.getYRot());
+-                    if (!world.noCollision(abstractBoat, abstractBoat.getBoundingBox())) {
++                    abstractboat.setYRot(user.getYRot());
++                    if (!world.noCollision(abstractboat, abstractboat.getBoundingBox())) {
+                         return InteractionResult.FAIL;
+                     } else {
+                         if (!world.isClientSide) {
+-                            world.addFreshEntity(abstractBoat);
+-                            world.gameEvent(user, GameEvent.ENTITY_PLACE, hitResult.getLocation());
+-                            itemStack.consume(1, user);
++                            // CraftBukkit start
++                            if (org.bukkit.craftbukkit.event.CraftEventFactory.callEntityPlaceEvent(world, movingobjectpositionblock.getBlockPos(), movingobjectpositionblock.getDirection(), user, abstractboat, hand).isCancelled()) {
++                                return InteractionResult.FAIL;
++                            }
++
++                            if (!world.addFreshEntity(abstractboat)) {
++                                return InteractionResult.PASS;
++                            }
++                            // CraftBukkit end
++                            world.gameEvent((Entity) user, (Holder) GameEvent.ENTITY_PLACE, movingobjectpositionblock.getLocation());
++                            itemstack.consume(1, user);
+                         }
+ 
+                         user.awardStat(Stats.ITEM_USED.get(this));
+@@ -75,15 +100,19 @@
+ 
+     @Nullable
+     private AbstractBoat getBoat(Level world, HitResult hitResult, ItemStack stack, Player player) {
+-        AbstractBoat abstractBoat = this.entityType.create(world, EntitySpawnReason.SPAWN_ITEM_USE);
+-        if (abstractBoat != null) {
+-            Vec3 vec3 = hitResult.getLocation();
+-            abstractBoat.setInitialPos(vec3.x, vec3.y, vec3.z);
+-            if (world instanceof ServerLevel serverLevel) {
+-                EntityType.<AbstractBoat>createDefaultStackConfig(serverLevel, stack, player).accept(abstractBoat);
++        AbstractBoat abstractboat = (AbstractBoat) this.entityType.create(world, EntitySpawnReason.SPAWN_ITEM_USE);
++
++        if (abstractboat != null) {
++            Vec3 vec3d = hitResult.getLocation();
++
++            abstractboat.setInitialPos(vec3d.x, vec3d.y, vec3d.z);
++            if (world instanceof ServerLevel) {
++                ServerLevel worldserver = (ServerLevel) world;
++
++                EntityType.createDefaultStackConfig(worldserver, stack, player).accept(abstractboat);
+             }
+         }
+ 
+-        return abstractBoat;
++        return abstractboat;
+     }
+ }

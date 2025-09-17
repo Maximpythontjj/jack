@@ -1,0 +1,17 @@
+--- a/net/minecraft/world/level/CollisionGetter.java
++++ b/net/minecraft/world/level/CollisionGetter.java
+@@ -50,11 +50,13 @@
+     }
+ 
+     default boolean noCollision(@Nullable Entity entity, AABB box, boolean checkFluid) {
+-        for (VoxelShape voxelShape : checkFluid ? this.getBlockAndLiquidCollisions(entity, box) : this.getBlockCollisions(entity, box)) {
++        try { if (entity != null) entity.collisionLoadChunks = true; // Paper
++            for (VoxelShape voxelShape : checkFluid ? this.getBlockAndLiquidCollisions(entity, box) : this.getBlockCollisions(entity, box)) {
+             if (!voxelShape.isEmpty()) {
+                 return false;
+             }
+         }
++        } finally { if (entity != null) entity.collisionLoadChunks = false; } // Paper
+ 
+         if (!this.getEntityCollisions(entity, box).isEmpty()) {
+             return false;

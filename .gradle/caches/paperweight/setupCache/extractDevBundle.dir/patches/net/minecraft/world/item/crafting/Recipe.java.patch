@@ -1,0 +1,21 @@
+--- a/net/minecraft/world/item/crafting/Recipe.java
++++ b/net/minecraft/world/item/crafting/Recipe.java
+@@ -13,9 +13,9 @@
+ import net.minecraft.world.level.Level;
+ 
+ public interface Recipe<T extends RecipeInput> {
++
+     Codec<Recipe<?>> CODEC = BuiltInRegistries.RECIPE_SERIALIZER.byNameCodec().dispatch(Recipe::getSerializer, RecipeSerializer::codec);
+-    StreamCodec<RegistryFriendlyByteBuf, Recipe<?>> STREAM_CODEC = ByteBufCodecs.registry(Registries.RECIPE_SERIALIZER)
+-        .dispatch(Recipe::getSerializer, RecipeSerializer::streamCodec);
++    StreamCodec<RegistryFriendlyByteBuf, Recipe<?>> STREAM_CODEC = ByteBufCodecs.registry(Registries.RECIPE_SERIALIZER).dispatch(Recipe::getSerializer, RecipeSerializer::streamCodec);
+ 
+     boolean matches(T input, Level world);
+ 
+@@ -44,4 +44,6 @@
+     }
+ 
+     RecipeBookCategory recipeBookCategory();
++
++    org.bukkit.inventory.Recipe toBukkitRecipe(org.bukkit.NamespacedKey id); // CraftBukkit
+ }

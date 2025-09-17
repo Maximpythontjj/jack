@@ -1,0 +1,40 @@
+--- a/net/minecraft/recipebook/ServerPlaceRecipe.java
++++ b/net/minecraft/recipebook/ServerPlaceRecipe.java
+@@ -41,6 +41,7 @@
+             return RecipeBookMenu.PostPlaceAction.NOTHING;
+         } else {
+             StackedItemContents stackedItemContents = new StackedItemContents();
++            stackedItemContents.initializeExtras(recipe.value(), null); // Paper - Improve exact choice recipe ingredients
+             inventory.fillStackedContents(stackedItemContents);
+             handler.fillCraftSlotsStackedContents(stackedItemContents);
+             return serverPlaceRecipe.tryPlaceRecipe(recipe, stackedItemContents);
+@@ -100,9 +101,9 @@
+         }
+ 
+         int j = this.calculateAmountToCraft(i, bl);
+-        List<Holder<Item>> list = new ArrayList<>();
++        List<io.papermc.paper.inventory.recipe.ItemOrExact> list = new ArrayList<>(); // Paper - Improve exact choice recipe ingredients
+         if (finder.canCraft(recipe.value(), j, list::add)) {
+-            OptionalInt optionalInt = list.stream().mapToInt(item -> item.value().getDefaultMaxStackSize()).min();
++            OptionalInt optionalInt = list.stream().mapToInt(io.papermc.paper.inventory.recipe.ItemOrExact::getMaxStackSize).min(); // Paper - Improve exact choice recipe ingredients
+             if (optionalInt.isPresent()) {
+                 j = Math.min(j, optionalInt.getAsInt());
+             }
+@@ -119,7 +120,7 @@
+                             int kx = k;
+ 
+                             while (kx > 0) {
+-                                Holder<Item> holder = list.get(jx);
++                                io.papermc.paper.inventory.recipe.ItemOrExact holder = list.get(jx); // Paper - Improve exact choice recipe ingredients
+                                 kx = this.moveItemToGrid(slot2, holder, kx);
+                                 if (kx == -1) {
+                                     return;
+@@ -155,7 +156,7 @@
+         }
+     }
+ 
+-    private int moveItemToGrid(Slot slot, Holder<Item> item, int count) {
++    private int moveItemToGrid(Slot slot, io.papermc.paper.inventory.recipe.ItemOrExact item, int count) { // Paper - Improve exact choice recipe ingredients
+         int i = this.inventory.findSlotMatchingCraftingIngredient(item);
+         if (i == -1) {
+             return -1;

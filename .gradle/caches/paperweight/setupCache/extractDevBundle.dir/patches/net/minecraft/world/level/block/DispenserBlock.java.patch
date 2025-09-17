@@ -1,0 +1,202 @@
+--- a/net/minecraft/world/level/block/DispenserBlock.java
++++ b/net/minecraft/world/level/block/DispenserBlock.java
+@@ -7,6 +7,7 @@
+ import javax.annotation.Nullable;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
++import net.minecraft.core.Holder;
+ import net.minecraft.core.Position;
+ import net.minecraft.core.component.DataComponents;
+ import net.minecraft.core.dispenser.BlockSource;
+@@ -43,85 +44,111 @@
+ import org.slf4j.Logger;
+ 
+ public class DispenserBlock extends BaseEntityBlock {
++
+     private static final Logger LOGGER = LogUtils.getLogger();
+     public static final MapCodec<DispenserBlock> CODEC = simpleCodec(DispenserBlock::new);
+     public static final EnumProperty<Direction> FACING = DirectionalBlock.FACING;
+     public static final BooleanProperty TRIGGERED = BlockStateProperties.TRIGGERED;
+     private static final DefaultDispenseItemBehavior DEFAULT_BEHAVIOR = new DefaultDispenseItemBehavior();
+-    public static final Map<Item, DispenseItemBehavior> DISPENSER_REGISTRY = new IdentityHashMap<>();
++    public static final Map<Item, DispenseItemBehavior> DISPENSER_REGISTRY = new IdentityHashMap();
+     private static final int TRIGGER_DURATION = 4;
++    public static boolean eventFired = false; // CraftBukkit
+ 
+     @Override
+     public MapCodec<? extends DispenserBlock> codec() {
+-        return CODEC;
++        return DispenserBlock.CODEC;
+     }
+ 
+     public static void registerBehavior(ItemLike provider, DispenseItemBehavior behavior) {
+-        DISPENSER_REGISTRY.put(provider.asItem(), behavior);
++        DispenserBlock.DISPENSER_REGISTRY.put(provider.asItem(), behavior);
+     }
+ 
+     public static void registerProjectileBehavior(ItemLike projectile) {
+-        DISPENSER_REGISTRY.put(projectile.asItem(), new ProjectileDispenseBehavior(projectile.asItem()));
++        DispenserBlock.DISPENSER_REGISTRY.put(projectile.asItem(), new ProjectileDispenseBehavior(projectile.asItem()));
+     }
+ 
+     protected DispenserBlock(BlockBehaviour.Properties settings) {
+         super(settings);
+-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH).setValue(TRIGGERED, Boolean.valueOf(false)));
++        this.registerDefaultState((BlockState) ((BlockState) ((BlockState) this.stateDefinition.any()).setValue(DispenserBlock.FACING, Direction.NORTH)).setValue(DispenserBlock.TRIGGERED, false));
+     }
+ 
+     @Override
+     protected InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
+-        if (!world.isClientSide && world.getBlockEntity(pos) instanceof DispenserBlockEntity dispenserBlockEntity) {
+-            player.openMenu(dispenserBlockEntity);
+-            player.awardStat(dispenserBlockEntity instanceof DropperBlockEntity ? Stats.INSPECT_DROPPER : Stats.INSPECT_DISPENSER);
++        if (!world.isClientSide) {
++            BlockEntity tileentity = world.getBlockEntity(pos);
++
++            if (tileentity instanceof DispenserBlockEntity) {
++                DispenserBlockEntity tileentitydispenser = (DispenserBlockEntity) tileentity;
++
++                if (player.openMenu(tileentitydispenser).isPresent()) { // Paper - Fix InventoryOpenEvent cancellation
++                player.awardStat(tileentitydispenser instanceof DropperBlockEntity ? Stats.INSPECT_DROPPER : Stats.INSPECT_DISPENSER);
++                } // Paper - Fix InventoryOpenEvent cancellation
++            }
+         }
+ 
+         return InteractionResult.SUCCESS;
+     }
+ 
+     public void dispenseFrom(ServerLevel world, BlockState state, BlockPos pos) {
+-        DispenserBlockEntity dispenserBlockEntity = world.getBlockEntity(pos, BlockEntityType.DISPENSER).orElse(null);
+-        if (dispenserBlockEntity == null) {
+-            LOGGER.warn("Ignoring dispensing attempt for Dispenser without matching block entity at {}", pos);
++        DispenserBlockEntity tileentitydispenser = (DispenserBlockEntity) world.getBlockEntity(pos, BlockEntityType.DISPENSER).orElse(null); // CraftBukkit - decompile error
++
++        if (tileentitydispenser == null) {
++            DispenserBlock.LOGGER.warn("Ignoring dispensing attempt for Dispenser without matching block entity at {}", pos);
+         } else {
+-            BlockSource blockSource = new BlockSource(world, pos, state, dispenserBlockEntity);
+-            int i = dispenserBlockEntity.getRandomSlot(world.random);
++            BlockSource sourceblock = new BlockSource(world, pos, state, tileentitydispenser);
++            int i = tileentitydispenser.getRandomSlot(world.random);
++
+             if (i < 0) {
++                if (org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockFailedDispenseEvent(world, pos)) { // Paper - Add BlockFailedDispenseEvent
+                 world.levelEvent(1001, pos, 0);
+-                world.gameEvent(GameEvent.BLOCK_ACTIVATE, pos, GameEvent.Context.of(dispenserBlockEntity.getBlockState()));
++                world.gameEvent((Holder) GameEvent.BLOCK_ACTIVATE, pos, GameEvent.Context.of(tileentitydispenser.getBlockState()));
++                } // Paper - Add BlockFailedDispenseEvent
+             } else {
+-                ItemStack itemStack = dispenserBlockEntity.getItem(i);
+-                DispenseItemBehavior dispenseItemBehavior = this.getDispenseMethod(world, itemStack);
+-                if (dispenseItemBehavior != DispenseItemBehavior.NOOP) {
+-                    dispenserBlockEntity.setItem(i, dispenseItemBehavior.dispense(blockSource, itemStack));
++                ItemStack itemstack = tileentitydispenser.getItem(i);
++                DispenseItemBehavior idispensebehavior = this.getDispenseMethod(world, itemstack);
++
++                if (idispensebehavior != DispenseItemBehavior.NOOP) {
++                    if (!org.bukkit.craftbukkit.event.CraftEventFactory.handleBlockPreDispenseEvent(world, pos, itemstack, i)) return; // Paper - Add BlockPreDispenseEvent
++                    DispenserBlock.eventFired = false; // CraftBukkit - reset event status
++                    tileentitydispenser.setItem(i, idispensebehavior.dispense(sourceblock, itemstack));
+                 }
++
+             }
+         }
+     }
+ 
++    // Paper start - Fix NPE with equippable and items without behavior
++    public static DispenseItemBehavior getDispenseBehavior(BlockSource pointer, ItemStack stack) {
++        return ((DispenserBlock) pointer.state().getBlock()).getDispenseMethod(pointer.level(), stack);
++    }
++    // Paper end - Fix NPE with equippable and items without behavior
++
+     protected DispenseItemBehavior getDispenseMethod(Level world, ItemStack stack) {
+         if (!stack.isItemEnabled(world.enabledFeatures())) {
+-            return DEFAULT_BEHAVIOR;
++            return DispenserBlock.DEFAULT_BEHAVIOR;
+         } else {
+-            DispenseItemBehavior dispenseItemBehavior = DISPENSER_REGISTRY.get(stack.getItem());
+-            return dispenseItemBehavior != null ? dispenseItemBehavior : getDefaultDispenseMethod(stack);
++            DispenseItemBehavior idispensebehavior = (DispenseItemBehavior) DispenserBlock.DISPENSER_REGISTRY.get(stack.getItem());
++
++            return idispensebehavior != null ? idispensebehavior : DispenserBlock.getDefaultDispenseMethod(stack);
+         }
+     }
+ 
+     private static DispenseItemBehavior getDefaultDispenseMethod(ItemStack stack) {
+-        return (DispenseItemBehavior)(stack.has(DataComponents.EQUIPPABLE) ? EquipmentDispenseItemBehavior.INSTANCE : DEFAULT_BEHAVIOR);
++        return (DispenseItemBehavior) (stack.has(DataComponents.EQUIPPABLE) ? EquipmentDispenseItemBehavior.INSTANCE : DispenserBlock.DEFAULT_BEHAVIOR);
+     }
+ 
+     @Override
+     protected void neighborChanged(BlockState state, Level world, BlockPos pos, Block sourceBlock, @Nullable Orientation wireOrientation, boolean notify) {
+-        boolean bl = world.hasNeighborSignal(pos) || world.hasNeighborSignal(pos.above());
+-        boolean bl2 = state.getValue(TRIGGERED);
+-        if (bl && !bl2) {
+-            world.scheduleTick(pos, this, 4);
+-            world.setBlock(pos, state.setValue(TRIGGERED, Boolean.valueOf(true)), 2);
+-        } else if (!bl && bl2) {
+-            world.setBlock(pos, state.setValue(TRIGGERED, Boolean.valueOf(false)), 2);
++        boolean flag1 = world.hasNeighborSignal(pos) || world.hasNeighborSignal(pos.above());
++        boolean flag2 = (Boolean) state.getValue(DispenserBlock.TRIGGERED);
++
++        if (flag1 && !flag2) {
++            world.scheduleTick(pos, (Block) this, 4);
++            world.setBlock(pos, (BlockState) state.setValue(DispenserBlock.TRIGGERED, true), 2);
++        } else if (!flag1 && flag2) {
++            world.setBlock(pos, (BlockState) state.setValue(DispenserBlock.TRIGGERED, false), 2);
+         }
++
+     }
+ 
+     @Override
+@@ -136,7 +163,7 @@
+ 
+     @Override
+     public BlockState getStateForPlacement(BlockPlaceContext ctx) {
+-        return this.defaultBlockState().setValue(FACING, ctx.getNearestLookingDirection().getOpposite());
++        return (BlockState) this.defaultBlockState().setValue(DispenserBlock.FACING, ctx.getNearestLookingDirection().getOpposite());
+     }
+ 
+     @Override
+@@ -146,17 +173,13 @@
+     }
+ 
+     public static Position getDispensePosition(BlockSource pointer) {
+-        return getDispensePosition(pointer, 0.7, Vec3.ZERO);
++        return DispenserBlock.getDispensePosition(pointer, 0.7D, Vec3.ZERO);
+     }
+ 
+     public static Position getDispensePosition(BlockSource pointer, double facingOffset, Vec3 constantOffset) {
+-        Direction direction = pointer.state().getValue(FACING);
+-        return pointer.center()
+-            .add(
+-                facingOffset * (double)direction.getStepX() + constantOffset.x(),
+-                facingOffset * (double)direction.getStepY() + constantOffset.y(),
+-                facingOffset * (double)direction.getStepZ() + constantOffset.z()
+-            );
++        Direction enumdirection = (Direction) pointer.state().getValue(DispenserBlock.FACING);
++
++        return pointer.center().add(facingOffset * (double) enumdirection.getStepX() + constantOffset.x(), facingOffset * (double) enumdirection.getStepY() + constantOffset.y(), facingOffset * (double) enumdirection.getStepZ() + constantOffset.z());
+     }
+ 
+     @Override
+@@ -176,16 +199,16 @@
+ 
+     @Override
+     protected BlockState rotate(BlockState state, Rotation rotation) {
+-        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
++        return (BlockState) state.setValue(DispenserBlock.FACING, rotation.rotate((Direction) state.getValue(DispenserBlock.FACING)));
+     }
+ 
+     @Override
+     protected BlockState mirror(BlockState state, Mirror mirror) {
+-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
++        return state.rotate(mirror.getRotation((Direction) state.getValue(DispenserBlock.FACING)));
+     }
+ 
+     @Override
+     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+-        builder.add(FACING, TRIGGERED);
++        builder.add(DispenserBlock.FACING, DispenserBlock.TRIGGERED);
+     }
+ }

@@ -1,0 +1,27 @@
+--- a/net/minecraft/world/entity/player/StackedContents.java
++++ b/net/minecraft/world/entity/player/StackedContents.java
+@@ -10,7 +10,7 @@
+ import javax.annotation.Nullable;
+ 
+ public class StackedContents<T> {
+-    public final Reference2IntOpenHashMap<T> amounts = new Reference2IntOpenHashMap<>();
++    public final it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<T> amounts = new it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<>(); // Paper - Improve exact choice recipe ingredients (don't use "reference" map)
+ 
+     boolean hasAnyAmount(T input) {
+         return this.amounts.getInt(input) > 0;
+@@ -47,12 +47,13 @@
+         this.put(input, count);
+     }
+ 
+-    public static record IngredientInfo<T>(List<T> allowedItems) {
+-        public IngredientInfo(List<T> allowedItems) {
++    public static record IngredientInfo<T>(List<T> allowedItems, boolean isExact) { // Paper - Improve exact choice recipe ingredients
++        public IngredientInfo(List<T> allowedItems, boolean isExact) { // Paper - Improve exact choice recipe ingredients
+             if (allowedItems.isEmpty()) {
+                 throw new IllegalArgumentException("Ingredients can't be empty");
+             } else {
+                 this.allowedItems = allowedItems;
++                this.isExact = isExact; // Paper - Improve exact choice recipe ingredients
+             }
+         }
+     }

@@ -1,0 +1,51 @@
+# Конфигурация PotionMixer v1.0.0
+# Плагин для смешивания зелий через котел
+
+# Максимальное количество эффектов в итоговом зелье
+max-effects: 5
+
+# Требовать одинаковую длительность для совпадающих эффектов
+require-same-duration: true
+
+# Требовать одинаковый уровень усиления для совпадающих эффектов
+require-same-amplifier: true
+
+# Разрешенные типы зелий для смешивания
+# Доступные: POTION (питьевые), SPLASH_POTION (взрывные), LINGERING_POTION (туманящиеся)
+allowed-bases:
+  - POTION
+  - SPLASH_POTION
+  - LINGERING_POTION
+
+# Определяет тип итогового зелья
+# LEFT - как у левого зелья, RIGHT - как у правого
+# POTION/SPLASH_POTION/LINGERING_POTION - принудительно определенный тип
+result-basis: LEFT
+
+# Открывать GUI при клике ПКМ по котлу
+open-on-right-click: true
+
+# Требовать пустую руку для открытия GUI
+right-click-requires-empty-hand: false
+
+# Разрешать перенос кастомных названий из левого зелья
+allow-custom-names: false
+
+# Разрешать кастомные (не-ванильные) эффекты зелий
+allow-custom-effects: false
+
+# Воспроизводить звук при успешном смешивании
+sound-enabled: true
+
+# Показывать частицы при успешном смешивании
+particles-enabled: true
+
+# Включить подробные логи отладки
+debug-logs: false
+
+# Настройки команд
+commands:
+  # Включить команды плагина
+  enabled: true
+  # Включить команду /cauldron для открытия GUI без котла
+  cauldron-command: true

@@ -1,0 +1,85 @@
+--- a/net/minecraft/world/entity/player/StackedItemContents.java
++++ b/net/minecraft/world/entity/player/StackedItemContents.java
+@@ -12,9 +12,14 @@
+ import net.minecraft.world.item.crafting.Recipe;
+ 
+ public class StackedItemContents {
+-    private final StackedContents<Holder<Item>> raw = new StackedContents<>();
++    // Paper start - Improve exact choice recipe ingredients
++    private final StackedContents<io.papermc.paper.inventory.recipe.ItemOrExact> raw = new StackedContents<>();
++    @Nullable
++    private io.papermc.paper.inventory.recipe.StackedContentsExtrasMap extrasMap = null;
++    // Paper start - Improve exact choice recipe ingredients
+ 
+     public void accountSimpleStack(ItemStack item) {
++        if (this.extrasMap != null && this.extrasMap.accountStack(item, Math.min(64, item.getCount()))) return; // Paper - Improve exact choice recipe ingredients; max of 64 due to accountStack method below
+         if (Inventory.isUsableForCrafting(item)) {
+             this.accountStack(item);
+         }
+@@ -27,39 +32,56 @@
+     public void accountStack(ItemStack item, int maxCount) {
+         if (!item.isEmpty()) {
+             int i = Math.min(maxCount, item.getCount());
+-            this.raw.account(item.getItemHolder(), i);
++            if (this.extrasMap != null && !item.getComponentsPatch().isEmpty() && this.extrasMap.accountStack(item, i)) return; // Paper - Improve exact choice recipe ingredients; if an exact ingredient, don't include it
++            this.raw.account(new io.papermc.paper.inventory.recipe.ItemOrExact.Item(item.getItemHolder()), i);
+         }
+     }
+ 
+-    public static StackedContents.IngredientInfo<Holder<Item>> convertIngredientContents(Stream<Holder<Item>> items) {
+-        List<Holder<Item>> list = items.sorted(Comparator.comparingInt(item -> BuiltInRegistries.ITEM.getId(item.value()))).toList();
+-        return new StackedContents.IngredientInfo<>(list);
++    // Paper start - Improve exact choice recipe ingredients
++    public void initializeExtras(final Recipe<?> recipe, @Nullable final net.minecraft.world.item.crafting.CraftingInput input) {
++        if (this.extrasMap == null) {
++            this.extrasMap = new io.papermc.paper.inventory.recipe.StackedContentsExtrasMap(this.raw);
++        }
++        this.extrasMap.initialize(recipe);
++        if (input != null) this.extrasMap.accountInput(input);
+     }
+ 
+-    public boolean canCraft(Recipe<?> recipe, @Nullable StackedContents.Output<Holder<Item>> itemCallback) {
++    public void resetExtras() {
++        if (this.extrasMap != null && !this.raw.amounts.isEmpty()) {
++            this.extrasMap.resetExtras();
++        }
++    }
++
++    public static StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact> convertIngredientContents(Stream<io.papermc.paper.inventory.recipe.ItemOrExact> items, boolean isExact) {
++        List<io.papermc.paper.inventory.recipe.ItemOrExact> list = items.sorted(Comparator.comparingInt(item -> isExact ? ItemStack.hashItemAndComponents(((io.papermc.paper.inventory.recipe.ItemOrExact.Exact) item).stack()) : BuiltInRegistries.ITEM.getId(((io.papermc.paper.inventory.recipe.ItemOrExact.Item) item).item().value()))).toList();
++        return new StackedContents.IngredientInfo<>(list, isExact);
++        // Paper end - Improve exact choice recipe ingredients
++    }
++
++    public boolean canCraft(Recipe<?> recipe, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback) { // Paper - Improve exact choice recipe ingredients
+         return this.canCraft(recipe, 1, itemCallback);
+     }
+ 
+-    public boolean canCraft(Recipe<?> recipe, int quantity, @Nullable StackedContents.Output<Holder<Item>> itemCallback) {
++    public boolean canCraft(Recipe<?> recipe, int quantity, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback) { // Paper - Improve exact choice recipe ingredients
+         PlacementInfo placementInfo = recipe.placementInfo();
+         return !placementInfo.isImpossibleToPlace() && this.canCraft(placementInfo.unpackedIngredients(), quantity, itemCallback);
+     }
+ 
+-    public boolean canCraft(List<StackedContents.IngredientInfo<Holder<Item>>> rawIngredients, @Nullable StackedContents.Output<Holder<Item>> itemCallback) {
++    public boolean canCraft(List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> rawIngredients, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback) { // Paper - Improve exact choice recipe ingredients
+         return this.canCraft(rawIngredients, 1, itemCallback);
+     }
+ 
+     private boolean canCraft(
+-        List<StackedContents.IngredientInfo<Holder<Item>>> rawIngredients, int quantity, @Nullable StackedContents.Output<Holder<Item>> itemCallback
++        List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> rawIngredients, int quantity, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback // Paper - Improve exact choice recipe ingredients
+     ) {
+         return this.raw.tryPick(rawIngredients, quantity, itemCallback);
+     }
+ 
+-    public int getBiggestCraftableStack(Recipe<?> recipe, @Nullable StackedContents.Output<Holder<Item>> itemCallback) {
++    public int getBiggestCraftableStack(Recipe<?> recipe, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback) { // Paper - Improve exact choice recipe ingredients
+         return this.getBiggestCraftableStack(recipe, Integer.MAX_VALUE, itemCallback);
+     }
+ 
+-    public int getBiggestCraftableStack(Recipe<?> recipe, int max, @Nullable StackedContents.Output<Holder<Item>> itemCallback) {
++    public int getBiggestCraftableStack(Recipe<?> recipe, int max, @Nullable StackedContents.Output<io.papermc.paper.inventory.recipe.ItemOrExact> itemCallback) { // Paper - Improve exact choice recipe ingredients
+         return this.raw.tryPickAll(recipe.placementInfo().unpackedIngredients(), max, itemCallback);
+     }
+ 

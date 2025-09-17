@@ -1,0 +1,11 @@
+--- a/net/minecraft/world/level/storage/DimensionDataStorage.java
++++ b/net/minecraft/world/level/storage/DimensionDataStorage.java
+@@ -155,7 +155,7 @@
+             } catch (IOException var3) {
+                 LOGGER.error("Could not save data to {}", path.getFileName(), var3);
+             }
+-        }, Util.ioPool());
++        }, Util.DIMENSION_DATA_IO_POOL); // Paper - Separate dimension data IO pool
+     }
+ 
+     public void saveAndJoin() {

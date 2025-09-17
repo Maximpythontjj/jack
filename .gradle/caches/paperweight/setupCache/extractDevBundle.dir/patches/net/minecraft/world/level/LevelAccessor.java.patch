@@ -1,0 +1,66 @@
+--- a/net/minecraft/world/level/LevelAccessor.java
++++ b/net/minecraft/world/level/LevelAccessor.java
+@@ -26,6 +26,7 @@
+ import net.minecraft.world.ticks.TickPriority;
+ 
+ public interface LevelAccessor extends CommonLevelAccessor, LevelTimeAccess, ScheduledTickAccess {
++
+     @Override
+     default long dayTime() {
+         return this.getLevelData().getDayTime();
+@@ -35,12 +36,12 @@
+ 
+     @Override
+     default <T> ScheduledTick<T> createTick(BlockPos pos, T type, int delay, TickPriority priority) {
+-        return new ScheduledTick<>(type, pos, this.getLevelData().getGameTime() + (long)delay, priority, this.nextSubTickCount());
++        return new ScheduledTick<>(type, pos, this.getLevelData().getGameTime() + (long) delay, priority, this.nextSubTickCount());
+     }
+ 
+     @Override
+     default <T> ScheduledTick<T> createTick(BlockPos pos, T type, int delay) {
+-        return new ScheduledTick<>(type, pos, this.getLevelData().getGameTime() + (long)delay, this.nextSubTickCount());
++        return new ScheduledTick<>(type, pos, this.getLevelData().getGameTime() + (long) delay, this.nextSubTickCount());
+     }
+ 
+     LevelData getLevelData();
+@@ -63,8 +64,7 @@
+ 
+     RandomSource getRandom();
+ 
+-    default void blockUpdated(BlockPos pos, Block block) {
+-    }
++    default void blockUpdated(BlockPos pos, Block block) {}
+ 
+     default void neighborShapeChanged(Direction direction, BlockPos pos, BlockPos neighborPos, BlockState neighborState, int flags, int maxUpdateDepth) {
+         NeighborUpdater.executeShapeUpdate(this, direction, pos, neighborPos, neighborState, flags, maxUpdateDepth - 1);
+@@ -81,17 +81,17 @@
+     void levelEvent(@Nullable Player player, int eventId, BlockPos pos, int data);
+ 
+     default void levelEvent(int eventId, BlockPos pos, int data) {
+-        this.levelEvent(null, eventId, pos, data);
++        this.levelEvent((Player) null, eventId, pos, data);
+     }
+ 
+     void gameEvent(Holder<GameEvent> event, Vec3 emitterPos, GameEvent.Context emitter);
+ 
+     default void gameEvent(@Nullable Entity entity, Holder<GameEvent> event, Vec3 pos) {
+-        this.gameEvent(event, pos, new GameEvent.Context(entity, null));
++        this.gameEvent(event, pos, new GameEvent.Context(entity, (BlockState) null));
+     }
+ 
+     default void gameEvent(@Nullable Entity entity, Holder<GameEvent> event, BlockPos pos) {
+-        this.gameEvent(event, pos, new GameEvent.Context(entity, null));
++        this.gameEvent(event, pos, new GameEvent.Context(entity, (BlockState) null));
+     }
+ 
+     default void gameEvent(Holder<GameEvent> event, BlockPos pos, GameEvent.Context emitter) {
+@@ -99,6 +99,8 @@
+     }
+ 
+     default void gameEvent(ResourceKey<GameEvent> event, BlockPos pos, GameEvent.Context emitter) {
+-        this.gameEvent(this.registryAccess().lookupOrThrow(Registries.GAME_EVENT).getOrThrow(event), pos, emitter);
++        this.gameEvent((Holder) this.registryAccess().lookupOrThrow(Registries.GAME_EVENT).getOrThrow(event), pos, emitter);
+     }
++
++    net.minecraft.server.level.ServerLevel getMinecraftWorld(); // CraftBukkit
+ }

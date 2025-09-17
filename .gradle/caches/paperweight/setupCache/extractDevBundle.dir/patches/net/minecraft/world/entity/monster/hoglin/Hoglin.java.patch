@@ -1,0 +1,286 @@
+--- a/net/minecraft/world/entity/monster/hoglin/Hoglin.java
++++ b/net/minecraft/world/entity/monster/hoglin/Hoglin.java
+@@ -50,6 +50,7 @@
+ import net.minecraft.world.level.block.state.BlockState;
+ 
+ public class Hoglin extends Animal implements Enemy, HoglinBase {
++
+     private static final EntityDataAccessor<Boolean> DATA_IMMUNE_TO_ZOMBIFICATION = SynchedEntityData.defineId(Hoglin.class, EntityDataSerializers.BOOLEAN);
+     private static final int MAX_HEALTH = 40;
+     private static final float MOVEMENT_SPEED_WHEN_FIGHTING = 0.3F;
+@@ -61,31 +62,9 @@
+     private int attackAnimationRemainingTicks;
+     public int timeInOverworld;
+     public boolean cannotBeHunted;
+-    protected static final ImmutableList<? extends SensorType<? extends Sensor<? super Hoglin>>> SENSOR_TYPES = ImmutableList.of(
+-        SensorType.NEAREST_LIVING_ENTITIES, SensorType.NEAREST_PLAYERS, SensorType.NEAREST_ADULT, SensorType.HOGLIN_SPECIFIC_SENSOR
+-    );
+-    protected static final ImmutableList<? extends MemoryModuleType<?>> MEMORY_TYPES = ImmutableList.of(
+-        MemoryModuleType.BREED_TARGET,
+-        MemoryModuleType.NEAREST_LIVING_ENTITIES,
+-        MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES,
+-        MemoryModuleType.NEAREST_VISIBLE_PLAYER,
+-        MemoryModuleType.NEAREST_VISIBLE_ATTACKABLE_PLAYER,
+-        MemoryModuleType.LOOK_TARGET,
+-        MemoryModuleType.WALK_TARGET,
+-        MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE,
+-        MemoryModuleType.PATH,
+-        MemoryModuleType.ATTACK_TARGET,
+-        MemoryModuleType.ATTACK_COOLING_DOWN,
+-        MemoryModuleType.NEAREST_VISIBLE_ADULT_PIGLIN,
+-        MemoryModuleType.AVOID_TARGET,
+-        MemoryModuleType.VISIBLE_ADULT_PIGLIN_COUNT,
+-        MemoryModuleType.VISIBLE_ADULT_HOGLIN_COUNT,
+-        MemoryModuleType.NEAREST_VISIBLE_ADULT_HOGLINS,
+-        MemoryModuleType.NEAREST_VISIBLE_ADULT,
+-        MemoryModuleType.NEAREST_REPELLENT,
+-        MemoryModuleType.PACIFIED,
+-        MemoryModuleType.IS_PANICKING
+-    );
++    protected static final ImmutableList<? extends SensorType<? extends Sensor<? super Hoglin>>> SENSOR_TYPES = ImmutableList.of(SensorType.NEAREST_LIVING_ENTITIES, SensorType.NEAREST_PLAYERS, SensorType.NEAREST_ADULT, SensorType.HOGLIN_SPECIFIC_SENSOR);
++    // CraftBukkit - decompile error
++    protected static final ImmutableList<? extends MemoryModuleType<?>> MEMORY_TYPES = ImmutableList.<MemoryModuleType<?>>of(MemoryModuleType.BREED_TARGET, MemoryModuleType.NEAREST_LIVING_ENTITIES, MemoryModuleType.NEAREST_VISIBLE_LIVING_ENTITIES, MemoryModuleType.NEAREST_VISIBLE_PLAYER, MemoryModuleType.NEAREST_VISIBLE_ATTACKABLE_PLAYER, MemoryModuleType.LOOK_TARGET, MemoryModuleType.WALK_TARGET, MemoryModuleType.CANT_REACH_WALK_TARGET_SINCE, MemoryModuleType.PATH, MemoryModuleType.ATTACK_TARGET, MemoryModuleType.ATTACK_COOLING_DOWN, MemoryModuleType.NEAREST_VISIBLE_ADULT_PIGLIN, new MemoryModuleType[]{MemoryModuleType.AVOID_TARGET, MemoryModuleType.VISIBLE_ADULT_PIGLIN_COUNT, MemoryModuleType.VISIBLE_ADULT_HOGLIN_COUNT, MemoryModuleType.NEAREST_VISIBLE_ADULT_HOGLINS, MemoryModuleType.NEAREST_VISIBLE_ADULT, MemoryModuleType.NEAREST_REPELLENT, MemoryModuleType.PACIFIED, MemoryModuleType.IS_PANICKING});
+ 
+     public Hoglin(EntityType<? extends Hoglin> type, Level world) {
+         super(type, world);
+@@ -103,22 +82,17 @@
+     }
+ 
+     public static AttributeSupplier.Builder createAttributes() {
+-        return Monster.createMonsterAttributes()
+-            .add(Attributes.MAX_HEALTH, 40.0)
+-            .add(Attributes.MOVEMENT_SPEED, 0.3F)
+-            .add(Attributes.KNOCKBACK_RESISTANCE, 0.6F)
+-            .add(Attributes.ATTACK_KNOCKBACK, 1.0)
+-            .add(Attributes.ATTACK_DAMAGE, 6.0);
++        return Monster.createMonsterAttributes().add(Attributes.MAX_HEALTH, 40.0D).add(Attributes.MOVEMENT_SPEED, 0.30000001192092896D).add(Attributes.KNOCKBACK_RESISTANCE, 0.6000000238418579D).add(Attributes.ATTACK_KNOCKBACK, 1.0D).add(Attributes.ATTACK_DAMAGE, 6.0D);
+     }
+ 
+     @Override
+     public boolean doHurtTarget(ServerLevel world, Entity target) {
+-        if (target instanceof LivingEntity livingEntity) {
++        if (target instanceof LivingEntity entityliving) {
+             this.attackAnimationRemainingTicks = 10;
+-            this.level().broadcastEntityEvent(this, (byte)4);
++            this.level().broadcastEntityEvent(this, (byte) 4);
+             this.makeSound(SoundEvents.HOGLIN_ATTACK);
+-            HoglinAi.onHitTarget(this, livingEntity);
+-            return HoglinBase.hurtAndThrowTarget(world, this, livingEntity);
++            HoglinAi.onHitTarget(this, entityliving);
++            return HoglinBase.hurtAndThrowTarget(world, this, entityliving);
+         } else {
+             return false;
+         }
+@@ -129,21 +103,29 @@
+         if (this.isAdult()) {
+             HoglinBase.throwTarget(this, target);
+         }
++
+     }
+ 
+     @Override
+     public boolean hurtServer(ServerLevel world, DamageSource source, float amount) {
+-        boolean bl = super.hurtServer(world, source, amount);
+-        if (bl && source.getEntity() instanceof LivingEntity livingEntity) {
+-            HoglinAi.wasHurtBy(world, this, livingEntity);
++        boolean flag = super.hurtServer(world, source, amount);
++
++        if (flag) {
++            Entity entity = source.getEntity();
++
++            if (entity instanceof LivingEntity) {
++                LivingEntity entityliving = (LivingEntity) entity;
++
++                HoglinAi.wasHurtBy(world, this, entityliving);
++            }
+         }
+ 
+-        return bl;
++        return flag;
+     }
+ 
+     @Override
+     protected Brain.Provider<Hoglin> brainProvider() {
+-        return Brain.provider(MEMORY_TYPES, SENSOR_TYPES);
++        return Brain.provider(Hoglin.MEMORY_TYPES, Hoglin.SENSOR_TYPES);
+     }
+ 
+     @Override
+@@ -153,18 +135,19 @@
+ 
+     @Override
+     public Brain<Hoglin> getBrain() {
+-        return (Brain<Hoglin>)super.getBrain();
++        return (Brain<Hoglin>) super.getBrain(); // CraftBukkit - decompile error
+     }
+ 
+     @Override
+     protected void customServerAiStep(ServerLevel world) {
+-        ProfilerFiller profilerFiller = Profiler.get();
+-        profilerFiller.push("hoglinBrain");
++        ProfilerFiller gameprofilerfiller = Profiler.get();
++
++        gameprofilerfiller.push("hoglinBrain");
+         this.getBrain().tick(world, this);
+-        profilerFiller.pop();
++        gameprofilerfiller.pop();
+         HoglinAi.updateActivity(this);
+         if (this.isConverting()) {
+-            this.timeInOverworld++;
++            ++this.timeInOverworld;
+             if (this.timeInOverworld > 300) {
+                 this.makeSound(SoundEvents.HOGLIN_CONVERTED_TO_ZOMBIFIED);
+                 this.finishConversion();
+@@ -172,12 +155,13 @@
+         } else {
+             this.timeInOverworld = 0;
+         }
++
+     }
+ 
+     @Override
+     public void aiStep() {
+         if (this.attackAnimationRemainingTicks > 0) {
+-            this.attackAnimationRemainingTicks--;
++            --this.attackAnimationRemainingTicks;
+         }
+ 
+         super.aiStep();
+@@ -187,11 +171,12 @@
+     protected void ageBoundaryReached() {
+         if (this.isBaby()) {
+             this.xpReward = 3;
+-            this.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(0.5);
++            this.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(0.5D);
+         } else {
+             this.xpReward = 5;
+-            this.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(6.0);
++            this.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(6.0D);
+         }
++
+     }
+ 
+     public static boolean checkHoglinSpawnRules(EntityType<Hoglin> type, LevelAccessor world, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random) {
+@@ -200,9 +185,7 @@
+ 
+     @Nullable
+     @Override
+-    public SpawnGroupData finalizeSpawn(
+-        ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason, @Nullable SpawnGroupData entityData
+-    ) {
++    public SpawnGroupData finalizeSpawn(ServerLevelAccessor world, DifficultyInstance difficulty, EntitySpawnReason spawnReason, @Nullable SpawnGroupData entityData) {
+         if (world.getRandom().nextFloat() < 0.2F) {
+             this.setBaby(true);
+         }
+@@ -217,21 +200,18 @@
+ 
+     @Override
+     public float getWalkTargetValue(BlockPos pos, LevelReader world) {
+-        if (HoglinAi.isPosNearNearestRepellent(this, pos)) {
+-            return -1.0F;
+-        } else {
+-            return world.getBlockState(pos.below()).is(Blocks.CRIMSON_NYLIUM) ? 10.0F : 0.0F;
+-        }
++        return HoglinAi.isPosNearNearestRepellent(this, pos) ? -1.0F : (world.getBlockState(pos.below()).is(Blocks.CRIMSON_NYLIUM) ? 10.0F : 0.0F);
+     }
+ 
+     @Override
+     public InteractionResult mobInteract(Player player, InteractionHand hand) {
+-        InteractionResult interactionResult = super.mobInteract(player, hand);
+-        if (interactionResult.consumesAction()) {
++        InteractionResult enuminteractionresult = super.mobInteract(player, hand);
++
++        if (enuminteractionresult.consumesAction()) {
+             this.setPersistenceRequired();
+         }
+ 
+-        return interactionResult;
++        return enuminteractionresult;
+     }
+ 
+     @Override
+@@ -242,6 +222,7 @@
+         } else {
+             super.handleEntityEvent(status);
+         }
++
+     }
+ 
+     @Override
+@@ -260,9 +241,15 @@
+     }
+ 
+     private void finishConversion() {
+-        this.convertTo(
+-            EntityType.ZOGLIN, ConversionParams.single(this, true, false), zoglin -> zoglin.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0))
+-        );
++        net.minecraft.world.entity.Entity converted = this.convertTo(EntityType.ZOGLIN, ConversionParams.single(this, true, false), (entityzoglin) -> {
++            entityzoglin.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0));
++        }, org.bukkit.event.entity.EntityTransformEvent.TransformReason.PIGLIN_ZOMBIFIED, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.PIGLIN_ZOMBIFIED); // CraftBukkit - add spawn and transform reasons
++
++        // Paper start - Fix issues with mob conversion; reset to prevent event spam
++        if (converted == null) {
++            this.timeInOverworld = 0;
++        }
++        // Paper end - Fix issues with mob conversion
+     }
+ 
+     @Override
+@@ -277,7 +264,7 @@
+     @Override
+     protected void defineSynchedData(SynchedEntityData.Builder builder) {
+         super.defineSynchedData(builder);
+-        builder.define(DATA_IMMUNE_TO_ZOMBIFICATION, false);
++        builder.define(Hoglin.DATA_IMMUNE_TO_ZOMBIFICATION, false);
+     }
+ 
+     @Override
+@@ -291,6 +278,7 @@
+         if (this.cannotBeHunted) {
+             nbt.putBoolean("CannotBeHunted", true);
+         }
++
+     }
+ 
+     @Override
+@@ -302,11 +290,11 @@
+     }
+ 
+     public void setImmuneToZombification(boolean immuneToZombification) {
+-        this.getEntityData().set(DATA_IMMUNE_TO_ZOMBIFICATION, immuneToZombification);
++        this.getEntityData().set(Hoglin.DATA_IMMUNE_TO_ZOMBIFICATION, immuneToZombification);
+     }
+ 
+     public boolean isImmuneToZombification() {
+-        return this.getEntityData().get(DATA_IMMUNE_TO_ZOMBIFICATION);
++        return (Boolean) this.getEntityData().get(Hoglin.DATA_IMMUNE_TO_ZOMBIFICATION);
+     }
+ 
+     public boolean isConverting() {
+@@ -324,12 +312,13 @@
+     @Nullable
+     @Override
+     public AgeableMob getBreedOffspring(ServerLevel world, AgeableMob entity) {
+-        Hoglin hoglin = EntityType.HOGLIN.create(world, EntitySpawnReason.BREEDING);
+-        if (hoglin != null) {
+-            hoglin.setPersistenceRequired();
++        Hoglin entityhoglin = (Hoglin) EntityType.HOGLIN.create(world, EntitySpawnReason.BREEDING);
++
++        if (entityhoglin != null) {
++            entityhoglin.setPersistenceRequired();
+         }
+ 
+-        return hoglin;
++        return entityhoglin;
+     }
+ 
+     @Override
+@@ -344,7 +333,7 @@
+ 
+     @Override
+     protected SoundEvent getAmbientSound() {
+-        return this.level().isClientSide ? null : HoglinAi.getSoundForCurrentActivity(this).orElse(null);
++        return this.level().isClientSide ? null : (SoundEvent) HoglinAi.getSoundForCurrentActivity(this).orElse(null); // CraftBukkit - decompile error
+     }
+ 
+     @Override

@@ -1,0 +1,173 @@
+--- a/net/minecraft/world/item/crafting/TransmuteRecipe.java
++++ b/net/minecraft/world/item/crafting/TransmuteRecipe.java
+@@ -17,9 +17,18 @@
+ import net.minecraft.world.item.crafting.display.RecipeDisplay;
+ import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+ import net.minecraft.world.item.crafting.display.SlotDisplay;
++import net.minecraft.world.level.ItemLike;
+ import net.minecraft.world.level.Level;
++// CraftBukkit start
++import org.bukkit.NamespacedKey;
++import org.bukkit.craftbukkit.inventory.CraftItemType;
++import org.bukkit.craftbukkit.inventory.CraftRecipe;
++import org.bukkit.craftbukkit.inventory.CraftTransmuteRecipe;
++import org.bukkit.inventory.Recipe;
++// CraftBukkit end
+ 
+ public class TransmuteRecipe implements CraftingRecipe {
++
+     final String group;
+     final CraftingBookCategory category;
+     final Ingredient input;
+@@ -36,57 +45,58 @@
+         this.result = result;
+     }
+ 
+-    @Override
+     public boolean matches(CraftingInput input, Level world) {
+         if (input.ingredientCount() != 2) {
+             return false;
+         } else {
+-            boolean bl = false;
+-            boolean bl2 = false;
++            boolean flag = false;
++            boolean flag1 = false;
+ 
+-            for (int i = 0; i < input.size(); i++) {
+-                ItemStack itemStack = input.getItem(i);
+-                if (!itemStack.isEmpty()) {
+-                    if (!bl && this.input.test(itemStack) && itemStack.getItem() != this.result.value()) {
+-                        bl = true;
++            for (int i = 0; i < input.size(); ++i) {
++                ItemStack itemstack = input.getItem(i);
++
++                if (!itemstack.isEmpty()) {
++                    if (!flag && this.input.test(itemstack) && itemstack.getItem() != this.result.value()) {
++                        flag = true;
+                     } else {
+-                        if (bl2 || !this.material.test(itemStack)) {
++                        if (flag1 || !this.material.test(itemstack)) {
+                             return false;
+                         }
+ 
+-                        bl2 = true;
++                        flag1 = true;
+                     }
+                 }
+             }
+ 
+-            return bl && bl2;
++            return flag && flag1;
+         }
+     }
+ 
+-    @Override
+     public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
+-        ItemStack itemStack = ItemStack.EMPTY;
++        ItemStack itemstack = ItemStack.EMPTY;
+ 
+-        for (int i = 0; i < input.size(); i++) {
+-            ItemStack itemStack2 = input.getItem(i);
+-            if (!itemStack2.isEmpty() && this.input.test(itemStack2) && itemStack2.getItem() != this.result.value()) {
+-                itemStack = itemStack2;
++        for (int i = 0; i < input.size(); ++i) {
++            ItemStack itemstack1 = input.getItem(i);
++
++            if (!itemstack1.isEmpty() && this.input.test(itemstack1) && itemstack1.getItem() != this.result.value()) {
++                itemstack = itemstack1;
+             }
+         }
+ 
+-        return itemStack.transmuteCopy(this.result.value(), 1);
++        return itemstack.transmuteCopy((ItemLike) this.result.value(), 1);
+     }
+ 
+     @Override
+     public List<RecipeDisplay> display() {
+-        return List.of(
+-            new ShapelessCraftingRecipeDisplay(
+-                List.of(this.input.display(), this.material.display()),
+-                new SlotDisplay.ItemSlotDisplay(this.result),
+-                new SlotDisplay.ItemSlotDisplay(Items.CRAFTING_TABLE)
+-            )
+-        );
++        return List.of(new ShapelessCraftingRecipeDisplay(List.of(this.input.display(), this.material.display()), new SlotDisplay.ItemSlotDisplay(this.result), new SlotDisplay.ItemSlotDisplay(Items.CRAFTING_TABLE)));
++    }
++
++    // CraftBukkit start
++    @Override
++    public Recipe toBukkitRecipe(NamespacedKey id) {
++        return new CraftTransmuteRecipe(id, CraftItemType.minecraftToBukkit(this.result.value()), CraftRecipe.toBukkit(this.input), CraftRecipe.toBukkit(this.material));
+     }
++    // CraftBukkit end
+ 
+     @Override
+     public RecipeSerializer<TransmuteRecipe> getSerializer() {
+@@ -113,38 +123,42 @@
+     }
+ 
+     public static class Serializer implements RecipeSerializer<TransmuteRecipe> {
+-        private static final MapCodec<TransmuteRecipe> CODEC = RecordCodecBuilder.mapCodec(
+-            instance -> instance.group(
+-                        Codec.STRING.optionalFieldOf("group", "").forGetter(recipe -> recipe.group),
+-                        CraftingBookCategory.CODEC.fieldOf("category").orElse(CraftingBookCategory.MISC).forGetter(recipe -> recipe.category),
+-                        Ingredient.CODEC.fieldOf("input").forGetter(recipe -> recipe.input),
+-                        Ingredient.CODEC.fieldOf("material").forGetter(recipe -> recipe.material),
+-                        Item.CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
+-                    )
+-                    .apply(instance, TransmuteRecipe::new)
+-        );
+-        public static final StreamCodec<RegistryFriendlyByteBuf, TransmuteRecipe> STREAM_CODEC = StreamCodec.composite(
+-            ByteBufCodecs.STRING_UTF8,
+-            recipe -> recipe.group,
+-            CraftingBookCategory.STREAM_CODEC,
+-            recipe -> recipe.category,
+-            Ingredient.CONTENTS_STREAM_CODEC,
+-            recipe -> recipe.input,
+-            Ingredient.CONTENTS_STREAM_CODEC,
+-            recipe -> recipe.material,
+-            ByteBufCodecs.holderRegistry(Registries.ITEM),
+-            recipe -> recipe.result,
+-            TransmuteRecipe::new
+-        );
++
++        private static final MapCodec<TransmuteRecipe> CODEC = RecordCodecBuilder.mapCodec((instance) -> {
++            return instance.group(Codec.STRING.optionalFieldOf("group", "").forGetter((transmuterecipe) -> {
++                return transmuterecipe.group;
++            }), CraftingBookCategory.CODEC.fieldOf("category").orElse(CraftingBookCategory.MISC).forGetter((transmuterecipe) -> {
++                return transmuterecipe.category;
++            }), Ingredient.CODEC.fieldOf("input").forGetter((transmuterecipe) -> {
++                return transmuterecipe.input;
++            }), Ingredient.CODEC.fieldOf("material").forGetter((transmuterecipe) -> {
++                return transmuterecipe.material;
++            }), Item.CODEC.fieldOf("result").forGetter((transmuterecipe) -> {
++                return transmuterecipe.result;
++            })).apply(instance, TransmuteRecipe::new);
++        });
++        public static final StreamCodec<RegistryFriendlyByteBuf, TransmuteRecipe> STREAM_CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, (transmuterecipe) -> {
++            return transmuterecipe.group;
++        }, CraftingBookCategory.STREAM_CODEC, (transmuterecipe) -> {
++            return transmuterecipe.category;
++        }, Ingredient.CONTENTS_STREAM_CODEC, (transmuterecipe) -> {
++            return transmuterecipe.input;
++        }, Ingredient.CONTENTS_STREAM_CODEC, (transmuterecipe) -> {
++            return transmuterecipe.material;
++        }, ByteBufCodecs.holderRegistry(Registries.ITEM), (transmuterecipe) -> {
++            return transmuterecipe.result;
++        }, TransmuteRecipe::new);
++
++        public Serializer() {}
+ 
+         @Override
+         public MapCodec<TransmuteRecipe> codec() {
+-            return CODEC;
++            return TransmuteRecipe.Serializer.CODEC;
+         }
+ 
+         @Override
+         public StreamCodec<RegistryFriendlyByteBuf, TransmuteRecipe> streamCodec() {
+-            return STREAM_CODEC;
++            return TransmuteRecipe.Serializer.STREAM_CODEC;
+         }
+     }
+ }

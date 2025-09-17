@@ -1,0 +1,90 @@
+--- a/net/minecraft/world/entity/monster/piglin/AbstractPiglin.java
++++ b/net/minecraft/world/entity/monster/piglin/AbstractPiglin.java
+@@ -21,9 +21,8 @@
+ import net.minecraft.world.level.pathfinder.PathType;
+ 
+ public abstract class AbstractPiglin extends Monster {
+-    protected static final EntityDataAccessor<Boolean> DATA_IMMUNE_TO_ZOMBIFICATION = SynchedEntityData.defineId(
+-        AbstractPiglin.class, EntityDataSerializers.BOOLEAN
+-    );
++
++    protected static final EntityDataAccessor<Boolean> DATA_IMMUNE_TO_ZOMBIFICATION = SynchedEntityData.defineId(AbstractPiglin.class, EntityDataSerializers.BOOLEAN);
+     public static final int CONVERSION_TIME = 300;
+     public int timeInOverworld;
+ 
+@@ -37,24 +36,25 @@
+ 
+     private void applyOpenDoorsAbility() {
+         if (GoalUtils.hasGroundPathNavigation(this)) {
+-            ((GroundPathNavigation)this.getNavigation()).setCanOpenDoors(true);
++            ((GroundPathNavigation) this.getNavigation()).setCanOpenDoors(true);
+         }
++
+     }
+ 
+     protected abstract boolean canHunt();
+ 
+     public void setImmuneToZombification(boolean immuneToZombification) {
+-        this.getEntityData().set(DATA_IMMUNE_TO_ZOMBIFICATION, immuneToZombification);
++        this.getEntityData().set(AbstractPiglin.DATA_IMMUNE_TO_ZOMBIFICATION, immuneToZombification);
+     }
+ 
+     public boolean isImmuneToZombification() {
+-        return this.getEntityData().get(DATA_IMMUNE_TO_ZOMBIFICATION);
++        return (Boolean) this.getEntityData().get(AbstractPiglin.DATA_IMMUNE_TO_ZOMBIFICATION);
+     }
+ 
+     @Override
+     protected void defineSynchedData(SynchedEntityData.Builder builder) {
+         super.defineSynchedData(builder);
+-        builder.define(DATA_IMMUNE_TO_ZOMBIFICATION, false);
++        builder.define(AbstractPiglin.DATA_IMMUNE_TO_ZOMBIFICATION, false);
+     }
+ 
+     @Override
+@@ -78,7 +78,7 @@
+     protected void customServerAiStep(ServerLevel world) {
+         super.customServerAiStep(world);
+         if (this.isConverting()) {
+-            this.timeInOverworld++;
++            ++this.timeInOverworld;
+         } else {
+             this.timeInOverworld = 0;
+         }
+@@ -87,6 +87,7 @@
+             this.playConvertedSound();
+             this.finishConversion(world);
+         }
++
+     }
+ 
+     @VisibleForTesting
+@@ -99,11 +100,15 @@
+     }
+ 
+     protected void finishConversion(ServerLevel world) {
+-        this.convertTo(
+-            EntityType.ZOMBIFIED_PIGLIN,
+-            ConversionParams.single(this, true, true),
+-            zombifiedPiglin -> zombifiedPiglin.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0))
+-        );
++        net.minecraft.world.entity.Entity converted = this.convertTo(EntityType.ZOMBIFIED_PIGLIN, ConversionParams.single(this, true, true), (entitypigzombie) -> { // Paper - Fix issues with mob conversion; reset to prevent event spam
++            entitypigzombie.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 200, 0));
++        }, org.bukkit.event.entity.EntityTransformEvent.TransformReason.PIGLIN_ZOMBIFIED, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.PIGLIN_ZOMBIFIED); // CraftBukkit - add spawn and transform reasons
++
++        // Paper start - Fix issues with mob conversion; reset to prevent event spam
++        if (converted == null) {
++            this.timeInOverworld = 0;
++        }
++        // Paper end - Fix issues with mob conversion
+     }
+ 
+     public boolean isAdult() {
+@@ -127,6 +132,7 @@
+         if (PiglinAi.isIdle(this)) {
+             super.playAmbientSound();
+         }
++
+     }
+ 
+     @Override

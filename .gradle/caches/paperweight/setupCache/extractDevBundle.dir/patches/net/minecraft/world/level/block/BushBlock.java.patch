@@ -1,0 +1,65 @@
+--- a/net/minecraft/world/level/block/BushBlock.java
++++ b/net/minecraft/world/level/block/BushBlock.java
+@@ -6,6 +6,7 @@
+ import net.minecraft.tags.BlockTags;
+ import net.minecraft.util.RandomSource;
+ import net.minecraft.world.level.BlockGetter;
++import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.LevelReader;
+ import net.minecraft.world.level.ScheduledTickAccess;
+ import net.minecraft.world.level.block.state.BlockBehaviour;
+@@ -13,6 +14,7 @@
+ import net.minecraft.world.level.pathfinder.PathComputationType;
+ 
+ public abstract class BushBlock extends Block {
++
+     protected BushBlock(BlockBehaviour.Properties settings) {
+         super(settings);
+     }
+@@ -25,25 +27,23 @@
+     }
+ 
+     @Override
+-    protected BlockState updateShape(
+-        BlockState state,
+-        LevelReader world,
+-        ScheduledTickAccess tickView,
+-        BlockPos pos,
+-        Direction direction,
+-        BlockPos neighborPos,
+-        BlockState neighborState,
+-        RandomSource random
+-    ) {
+-        return !state.canSurvive(world, pos)
+-            ? Blocks.AIR.defaultBlockState()
+-            : super.updateShape(state, world, tickView, pos, direction, neighborPos, neighborState, random);
++    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess tickView, BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
++        // CraftBukkit start
++        if (!state.canSurvive(world, pos)) {
++            // Suppress during worldgen
++            if (!(world instanceof net.minecraft.server.level.ServerLevel world1 && world1.hasPhysicsEvent) || !org.bukkit.craftbukkit.event.CraftEventFactory.callBlockPhysicsEvent(world1, pos).isCancelled()) { // Paper
++                return Blocks.AIR.defaultBlockState();
++            }
++        }
++        return super.updateShape(state, world, tickView, pos, direction, neighborPos, neighborState, random);
++        // CraftBukkit end
+     }
+ 
+     @Override
+     protected boolean canSurvive(BlockState state, LevelReader world, BlockPos pos) {
+-        BlockPos blockPos = pos.below();
+-        return this.mayPlaceOn(world.getBlockState(blockPos), world, blockPos);
++        BlockPos blockposition1 = pos.below();
++
++        return this.mayPlaceOn(world.getBlockState(blockposition1), world, blockposition1);
+     }
+ 
+     @Override
+@@ -53,6 +53,6 @@
+ 
+     @Override
+     protected boolean isPathfindable(BlockState state, PathComputationType type) {
+-        return type == PathComputationType.AIR && !this.hasCollision || super.isPathfindable(state, type);
++        return type == PathComputationType.AIR && !this.hasCollision ? true : super.isPathfindable(state, type);
+     }
+ }

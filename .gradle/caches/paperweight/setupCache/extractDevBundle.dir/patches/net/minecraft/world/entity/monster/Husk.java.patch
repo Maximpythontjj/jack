@@ -1,0 +1,55 @@
+--- a/net/minecraft/world/entity/monster/Husk.java
++++ b/net/minecraft/world/entity/monster/Husk.java
+@@ -12,18 +12,18 @@
+ import net.minecraft.world.entity.EntitySpawnReason;
+ import net.minecraft.world.entity.EntityType;
+ import net.minecraft.world.entity.LivingEntity;
++import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.ServerLevelAccessor;
+ 
+ public class Husk extends Zombie {
++
+     public Husk(EntityType<? extends Husk> type, Level world) {
+         super(type, world);
+     }
+ 
+-    public static boolean checkHuskSpawnRules(
+-        EntityType<Husk> type, ServerLevelAccessor world, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random
+-    ) {
++    public static boolean checkHuskSpawnRules(EntityType<Husk> type, ServerLevelAccessor world, EntitySpawnReason spawnReason, BlockPos pos, RandomSource random) {
+         return checkMonsterSpawnRules(type, world, spawnReason, pos, random) && (EntitySpawnReason.isSpawner(spawnReason) || world.canSeeSky(pos));
+     }
+ 
+@@ -54,13 +54,15 @@
+ 
+     @Override
+     public boolean doHurtTarget(ServerLevel world, Entity target) {
+-        boolean bl = super.doHurtTarget(world, target);
+-        if (bl && this.getMainHandItem().isEmpty() && target instanceof LivingEntity) {
++        boolean flag = super.doHurtTarget(world, target);
++
++        if (flag && this.getMainHandItem().isEmpty() && target instanceof LivingEntity) {
+             float f = this.level().getCurrentDifficultyAt(this.blockPosition()).getEffectiveDifficulty();
+-            ((LivingEntity)target).addEffect(new MobEffectInstance(MobEffects.HUNGER, 140 * (int)f), this);
++
++            ((LivingEntity) target).addEffect(new MobEffectInstance(MobEffects.HUNGER, 140 * (int) f), this, org.bukkit.event.entity.EntityPotionEffectEvent.Cause.ATTACK); // CraftBukkit
+         }
+ 
+-        return bl;
++        return flag;
+     }
+ 
+     @Override
+@@ -72,8 +74,9 @@
+     protected void doUnderWaterConversion() {
+         this.convertToZombieType(EntityType.ZOMBIE);
+         if (!this.isSilent()) {
+-            this.level().levelEvent(null, 1041, this.blockPosition(), 0);
++            this.level().levelEvent((Player) null, 1041, this.blockPosition(), 0);
+         }
++
+     }
+ 
+     @Override

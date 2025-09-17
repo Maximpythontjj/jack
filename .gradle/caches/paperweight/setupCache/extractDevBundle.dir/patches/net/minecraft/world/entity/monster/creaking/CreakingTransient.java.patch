@@ -1,0 +1,209 @@
+--- a/net/minecraft/world/entity/monster/creaking/CreakingTransient.java
++++ b/net/minecraft/world/entity/monster/creaking/CreakingTransient.java
+@@ -17,7 +17,9 @@
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Blocks;
+ import net.minecraft.world.level.block.CreakingHeartBlock;
++import net.minecraft.world.level.block.entity.BlockEntity;
+ import net.minecraft.world.level.block.entity.CreakingHeartBlockEntity;
++import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.level.pathfinder.PathFinder;
+ import net.minecraft.world.level.pathfinder.PathType;
+ import net.minecraft.world.level.pathfinder.PathfindingContext;
+@@ -26,6 +28,7 @@
+ import net.minecraft.world.phys.Vec3;
+ 
+ public class CreakingTransient extends Creaking {
++
+     public static final int INVULNERABILITY_ANIMATION_DURATION = 8;
+     private int invulnerabilityAnimationRemainingTicks;
+     @Nullable
+@@ -47,14 +50,19 @@
+             return super.hurtServer(world, source, amount);
+         } else if (!this.isInvulnerableTo(world, source) && this.invulnerabilityAnimationRemainingTicks <= 0) {
+             this.invulnerabilityAnimationRemainingTicks = 8;
+-            this.level().broadcastEntityEvent(this, (byte)66);
+-            if (this.level().getBlockEntity(this.homePos) instanceof CreakingHeartBlockEntity creakingHeartBlockEntity
+-                && creakingHeartBlockEntity.isProtector(this)) {
+-                if (source.getEntity() instanceof Player) {
+-                    creakingHeartBlockEntity.creakingHurt();
+-                }
++            this.level().broadcastEntityEvent(this, (byte) 66);
++            BlockEntity tileentity = this.level().getBlockEntity(this.homePos);
+ 
+-                this.playHurtSound(source);
++            if (tileentity instanceof CreakingHeartBlockEntity) {
++                CreakingHeartBlockEntity creakingheartblockentity = (CreakingHeartBlockEntity) tileentity;
++
++                if (creakingheartblockentity.isProtector(this)) {
++                    if (source.getEntity() instanceof Player) {
++                        creakingheartblockentity.creakingHurt();
++                    }
++
++                    this.playHurtSound(source);
++                }
+             }
+ 
+             return true;
+@@ -66,7 +74,7 @@
+     @Override
+     public void aiStep() {
+         if (this.invulnerabilityAnimationRemainingTicks > 0) {
+-            this.invulnerabilityAnimationRemainingTicks--;
++            --this.invulnerabilityAnimationRemainingTicks;
+         }
+ 
+         super.aiStep();
+@@ -74,17 +82,31 @@
+ 
+     @Override
+     public void tick() {
+-        if (this.level().isClientSide
+-            || this.homePos != null
+-                && this.level().getBlockEntity(this.homePos) instanceof CreakingHeartBlockEntity creakingHeartBlockEntity
+-                && creakingHeartBlockEntity.isProtector(this)) {
+-            super.tick();
+-            if (this.level().isClientSide) {
+-                this.setupAnimationStates();
++        if (!this.level().isClientSide) {
++            label18:
++            {
++                if (this.homePos != null) {
++                    BlockEntity tileentity = this.level().getBlockEntity(this.homePos);
++
++                    if (tileentity instanceof CreakingHeartBlockEntity) {
++                        CreakingHeartBlockEntity creakingheartblockentity = (CreakingHeartBlockEntity) tileentity;
++
++                        if (creakingheartblockentity.isProtector(this)) {
++                            break label18;
++                        }
++                    }
++                }
++
++                this.setRemoved(Entity.RemovalReason.DISCARDED, null); // CraftBukkit - add Bukkit remove cause
++                return;
+             }
+-        } else {
+-            this.setRemoved(Entity.RemovalReason.DISCARDED);
+         }
++
++        super.tick();
++        if (this.level().isClientSide) {
++            this.setupAnimationStates();
++        }
++
+     }
+ 
+     @Override
+@@ -95,6 +117,7 @@
+         } else {
+             super.handleEntityEvent(status);
+         }
++
+     }
+ 
+     private void setupAnimationStates() {
+@@ -102,37 +125,31 @@
+     }
+ 
+     public void tearDown(@Nullable DamageSource damageSource) {
+-        if (this.level() instanceof ServerLevel serverLevel) {
+-            AABB aABB = this.getBoundingBox();
+-            Vec3 vec3 = aABB.getCenter();
+-            double d = aABB.getXsize() * 0.3;
+-            double e = aABB.getYsize() * 0.3;
+-            double f = aABB.getZsize() * 0.3;
+-            serverLevel.sendParticles(
+-                new BlockParticleOption(ParticleTypes.BLOCK_CRUMBLE, Blocks.PALE_OAK_WOOD.defaultBlockState()), vec3.x, vec3.y, vec3.z, 100, d, e, f, 0.0
+-            );
+-            serverLevel.sendParticles(
+-                new BlockParticleOption(
+-                    ParticleTypes.BLOCK_CRUMBLE,
+-                    Blocks.CREAKING_HEART.defaultBlockState().setValue(CreakingHeartBlock.CREAKING, CreakingHeartBlock.CreakingHeartState.ACTIVE)
+-                ),
+-                vec3.x,
+-                vec3.y,
+-                vec3.z,
+-                10,
+-                d,
+-                e,
+-                f,
+-                0.0
+-            );
++        Level world = this.level();
++
++        if (world instanceof ServerLevel worldserver) {
++            AABB axisalignedbb = this.getBoundingBox();
++            Vec3 vec3d = axisalignedbb.getCenter();
++            double d0 = axisalignedbb.getXsize() * 0.3D;
++            double d1 = axisalignedbb.getYsize() * 0.3D;
++            double d2 = axisalignedbb.getZsize() * 0.3D;
++
++            worldserver.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK_CRUMBLE, Blocks.PALE_OAK_WOOD.defaultBlockState()), vec3d.x, vec3d.y, vec3d.z, 100, d0, d1, d2, 0.0D);
++            worldserver.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK_CRUMBLE, (BlockState) Blocks.CREAKING_HEART.defaultBlockState().setValue(CreakingHeartBlock.CREAKING, CreakingHeartBlock.CreakingHeartState.ACTIVE)), vec3d.x, vec3d.y, vec3d.z, 10, d0, d1, d2, 0.0D);
+         }
+ 
+         this.makeSound(this.getDeathSound());
+-        if (this.deathScore >= 0 && damageSource != null && damageSource.getEntity() instanceof LivingEntity livingEntity) {
+-            livingEntity.awardKillScore(this, this.deathScore, damageSource);
++        if (this.deathScore >= 0 && damageSource != null) {
++            Entity entity = damageSource.getEntity();
++
++            if (entity instanceof LivingEntity) {
++                LivingEntity entityliving = (LivingEntity) entity;
++
++                entityliving.awardKillScore(this, this.deathScore, damageSource);
++            }
+         }
+ 
+-        this.remove(Entity.RemovalReason.DISCARDED);
++        this.remove(Entity.RemovalReason.DISCARDED, null); // CraftBukkit - add Bukkit remove cause
+     }
+ 
+     @Override
+@@ -160,7 +177,8 @@
+         return new CreakingTransient.CreakingPathNavigation(this, world);
+     }
+ 
+-    class CreakingPathNavigation extends GroundPathNavigation {
++    private class CreakingPathNavigation extends GroundPathNavigation {
++
+         CreakingPathNavigation(final Creaking creaking, final Level world) {
+             super(creaking, world);
+         }
+@@ -170,6 +188,7 @@
+             if (CreakingTransient.this.canMove()) {
+                 super.tick();
+             }
++
+         }
+ 
+         @Override
+@@ -179,17 +198,22 @@
+         }
+     }
+ 
+-    class HomeNodeEvaluator extends WalkNodeEvaluator {
++    private class HomeNodeEvaluator extends WalkNodeEvaluator {
++
+         private static final int MAX_DISTANCE_TO_HOME_SQ = 1024;
+ 
++        HomeNodeEvaluator() {}
++
+         @Override
+         public PathType getPathType(PathfindingContext context, int x, int y, int z) {
+-            BlockPos blockPos = CreakingTransient.this.homePos;
+-            if (blockPos == null) {
++            BlockPos blockposition = CreakingTransient.this.homePos;
++
++            if (blockposition == null) {
+                 return super.getPathType(context, x, y, z);
+             } else {
+-                double d = blockPos.distSqr(new Vec3i(x, y, z));
+-                return d > 1024.0 && d >= blockPos.distSqr(context.mobPosition()) ? PathType.BLOCKED : super.getPathType(context, x, y, z);
++                double d0 = blockposition.distSqr(new Vec3i(x, y, z));
++
++                return d0 > 1024.0D && d0 >= blockposition.distSqr(context.mobPosition()) ? PathType.BLOCKED : super.getPathType(context, x, y, z);
+             }
+         }
+     }

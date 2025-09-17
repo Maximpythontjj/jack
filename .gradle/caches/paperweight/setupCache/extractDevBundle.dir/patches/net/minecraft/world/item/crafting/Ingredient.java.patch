@@ -1,0 +1,171 @@
+--- a/net/minecraft/world/item/crafting/Ingredient.java
++++ b/net/minecraft/world/item/crafting/Ingredient.java
+@@ -24,22 +24,45 @@
+ import net.minecraft.world.level.ItemLike;
+ 
+ public final class Ingredient implements Predicate<ItemStack> {
+-    public static final StreamCodec<RegistryFriendlyByteBuf, Ingredient> CONTENTS_STREAM_CODEC = ByteBufCodecs.holderSet(Registries.ITEM)
+-        .map(Ingredient::new, ingredient -> ingredient.values);
+-    public static final StreamCodec<RegistryFriendlyByteBuf, Optional<Ingredient>> OPTIONAL_CONTENTS_STREAM_CODEC = ByteBufCodecs.holderSet(Registries.ITEM)
+-        .map(
+-            entries -> entries.size() == 0 ? Optional.empty() : Optional.of(new Ingredient((HolderSet<Item>)entries)),
+-            optional -> optional.<HolderSet.Direct<Item>>map(ingredient -> ingredient.values).orElse(HolderSet.direct())
+-        );
++
++    public static final StreamCodec<RegistryFriendlyByteBuf, Ingredient> CONTENTS_STREAM_CODEC = ByteBufCodecs.holderSet(Registries.ITEM).map(Ingredient::new, (recipeitemstack) -> {
++        return recipeitemstack.values;
++    });
++    public static final StreamCodec<RegistryFriendlyByteBuf, Optional<Ingredient>> OPTIONAL_CONTENTS_STREAM_CODEC = ByteBufCodecs.holderSet(Registries.ITEM).map((holderset) -> {
++        return holderset.size() == 0 ? Optional.empty() : Optional.of(new Ingredient(holderset));
++    }, (optional) -> {
++        return (HolderSet) optional.map((recipeitemstack) -> {
++            return recipeitemstack.values;
++        }).orElse(HolderSet.direct());
++    });
+     public static final Codec<HolderSet<Item>> NON_AIR_HOLDER_SET_CODEC = HolderSetCodec.create(Registries.ITEM, Item.CODEC, false);
+-    public static final Codec<Ingredient> CODEC = ExtraCodecs.nonEmptyHolderSet(NON_AIR_HOLDER_SET_CODEC)
+-        .xmap(Ingredient::new, ingredient -> ingredient.values);
++    public static final Codec<Ingredient> CODEC = ExtraCodecs.nonEmptyHolderSet(Ingredient.NON_AIR_HOLDER_SET_CODEC).xmap(Ingredient::new, (recipeitemstack) -> {
++        return recipeitemstack.values;
++    });
+     private final HolderSet<Item> values;
+     @Nullable
+     private List<Holder<Item>> items;
++    // CraftBukkit start
++    @Nullable
++    private List<ItemStack> itemStacks;
++
++    public boolean isExact() {
++        return this.itemStacks != null;
++    }
++
++    public List<ItemStack> itemStacks() {
++        return this.itemStacks;
++    }
++
++    public static Ingredient ofStacks(List<ItemStack> stacks) {
++        Ingredient recipe = Ingredient.of(stacks.stream().map(ItemStack::getItem));
++        recipe.itemStacks = stacks;
++        return recipe;
++    }
++    // CraftBukkit end
+ 
+     private Ingredient(HolderSet<Item> entries) {
+-        entries.unwrap().ifRight(list -> {
++        entries.unwrap().ifRight((list) -> {
+             if (list.isEmpty()) {
+                 throw new UnsupportedOperationException("Ingredients can't be empty");
+             } else if (list.contains(Items.AIR.builtInRegistryHolder())) {
+@@ -50,7 +73,12 @@
+     }
+ 
+     public static boolean testOptionalIngredient(Optional<Ingredient> ingredient, ItemStack stack) {
+-        return ingredient.<Boolean>map(ingredient2 -> ingredient2.test(stack)).orElseGet(stack::isEmpty);
++        Optional optional1 = ingredient.map((recipeitemstack) -> {
++            return recipeitemstack.test(stack);
++        });
++
++        Objects.requireNonNull(stack);
++        return (Boolean) optional1.orElseGet(stack::isEmpty);
+     }
+ 
+     public List<Holder<Item>> items() {
+@@ -61,12 +89,22 @@
+         return this.items;
+     }
+ 
+-    @Override
+-    public boolean test(ItemStack itemStack) {
++    public boolean test(ItemStack itemstack) {
++        // CraftBukkit start
++        if (this.isExact()) {
++            for (ItemStack itemstack1 : this.itemStacks()) {
++                if (itemstack1.getItem() == itemstack.getItem() && ItemStack.isSameItemSameComponents(itemstack, itemstack1)) {
++                    return true;
++                }
++            }
++
++            return false;
++        }
++        // CraftBukkit end
+         List<Holder<Item>> list = this.items();
+ 
+-        for (int i = 0; i < list.size(); i++) {
+-            if (itemStack.is(list.get(i))) {
++        for (int i = 0; i < list.size(); ++i) {
++            if (itemstack.is((Holder) list.get(i))) {
+                 return true;
+             }
+         }
+@@ -74,9 +112,12 @@
+         return false;
+     }
+ 
+-    @Override
+     public boolean equals(Object object) {
+-        return object instanceof Ingredient ingredient && Objects.equals(this.values, ingredient.values);
++        if (object instanceof Ingredient recipeitemstack) {
++            return Objects.equals(this.values, recipeitemstack.values) && Objects.equals(this.itemStacks, recipeitemstack.itemStacks); // CraftBukkit
++        } else {
++            return false;
++        }
+     }
+ 
+     public static Ingredient of(ItemLike item) {
+@@ -84,11 +125,13 @@
+     }
+ 
+     public static Ingredient of(ItemLike... items) {
+-        return of(Arrays.stream(items));
++        return Ingredient.of(Arrays.stream(items));
+     }
+ 
+     public static Ingredient of(Stream<? extends ItemLike> stacks) {
+-        return new Ingredient(HolderSet.direct(stacks.map(item -> item.asItem().builtInRegistryHolder()).toList()));
++        return new Ingredient(HolderSet.direct(stacks.map((imaterial) -> {
++            return imaterial.asItem().builtInRegistryHolder();
++        }).toList()));
+     }
+ 
+     public static Ingredient of(HolderSet<Item> tag) {
+@@ -96,23 +139,30 @@
+     }
+ 
+     public SlotDisplay display() {
+-        return (SlotDisplay)this.values
+-            .unwrap()
+-            .map(SlotDisplay.TagSlotDisplay::new, items -> new SlotDisplay.Composite(items.stream().map(Ingredient::displayForSingleItem).toList()));
++        // Paper start - show exact ingredients in recipe book
++        if (this.isExact()) {
++            return new SlotDisplay.Composite(this.itemStacks().stream().<SlotDisplay>map(SlotDisplay.ItemStackSlotDisplay::new).toList());
++        }
++        // Paper end - show exact ingredients in recipe book
++        return (SlotDisplay) this.values.unwrap().map(SlotDisplay.TagSlotDisplay::new, (list) -> {
++            return new SlotDisplay.Composite(list.stream().map(Ingredient::displayForSingleItem).toList());
++        });
+     }
+ 
+     public static SlotDisplay optionalIngredientToDisplay(Optional<Ingredient> ingredient) {
+-        return ingredient.map(Ingredient::display).orElse(SlotDisplay.Empty.INSTANCE);
++        return (SlotDisplay) ingredient.map(Ingredient::display).orElse(SlotDisplay.Empty.INSTANCE);
+     }
+ 
+     private static SlotDisplay displayForSingleItem(Holder<Item> displayedItem) {
+-        SlotDisplay slotDisplay = new SlotDisplay.ItemSlotDisplay(displayedItem);
+-        ItemStack itemStack = displayedItem.value().getCraftingRemainder();
+-        if (!itemStack.isEmpty()) {
+-            SlotDisplay slotDisplay2 = new SlotDisplay.ItemStackSlotDisplay(itemStack);
+-            return new SlotDisplay.WithRemainder(slotDisplay, slotDisplay2);
++        SlotDisplay.ItemSlotDisplay slotdisplay_d = new SlotDisplay.ItemSlotDisplay(displayedItem);
++        ItemStack itemstack = ((Item) displayedItem.value()).getCraftingRemainder();
++
++        if (!itemstack.isEmpty()) {
++            SlotDisplay.ItemStackSlotDisplay slotdisplay_f = new SlotDisplay.ItemStackSlotDisplay(itemstack);
++
++            return new SlotDisplay.WithRemainder(slotdisplay_d, slotdisplay_f);
+         } else {
+-            return slotDisplay;
++            return slotdisplay_d;
+         }
+     }
+ }

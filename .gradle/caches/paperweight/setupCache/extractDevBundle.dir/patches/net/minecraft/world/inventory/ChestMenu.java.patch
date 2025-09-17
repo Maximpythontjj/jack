@@ -1,0 +1,120 @@
+--- a/net/minecraft/world/inventory/ChestMenu.java
++++ b/net/minecraft/world/inventory/ChestMenu.java
+@@ -1,14 +1,42 @@
+ package net.minecraft.world.inventory;
+ 
++import net.minecraft.world.CompoundContainer;
+ import net.minecraft.world.Container;
+ import net.minecraft.world.SimpleContainer;
+ import net.minecraft.world.entity.player.Inventory;
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.ItemStack;
++import org.bukkit.craftbukkit.inventory.CraftInventory;
++import org.bukkit.craftbukkit.inventory.CraftInventoryView;
++// CraftBukkit end
+ 
+ public class ChestMenu extends AbstractContainerMenu {
++
+     private final Container container;
+     private final int containerRows;
++    // CraftBukkit start
++    private CraftInventoryView bukkitEntity = null;
++    private Inventory player;
++
++    @Override
++    public CraftInventoryView getBukkitView() {
++        if (this.bukkitEntity != null) {
++            return this.bukkitEntity;
++        }
++
++        CraftInventory inventory;
++        if (this.container instanceof Inventory) {
++            inventory = new org.bukkit.craftbukkit.inventory.CraftInventoryPlayer((Inventory) this.container);
++        } else if (this.container instanceof CompoundContainer) {
++            inventory = new org.bukkit.craftbukkit.inventory.CraftInventoryDoubleChest((CompoundContainer) this.container);
++        } else {
++            inventory = new CraftInventory(this.container);
++        }
++
++        this.bukkitEntity = new CraftInventoryView(this.player.player.getBukkitEntity(), inventory, this);
++        return this.bukkitEntity;
++    }
++    // CraftBukkit end
+ 
+     private ChestMenu(MenuType<?> type, int syncId, Inventory playerInventory, int rows) {
+         this(type, syncId, playerInventory, new SimpleContainer(9 * rows), rows);
+@@ -52,48 +80,57 @@
+         this.container = inventory;
+         this.containerRows = rows;
+         inventory.startOpen(playerInventory.player);
+-        int i = 18;
++        // CraftBukkit start - Save player
++        this.player = playerInventory;
++        // CraftBukkit end
++        boolean flag = true;
++
+         this.addChestGrid(inventory, 8, 18);
+-        int j = 18 + this.containerRows * 18 + 13;
+-        this.addStandardInventorySlots(playerInventory, 8, j);
++        int k = 18 + this.containerRows * 18 + 13;
++
++        this.addStandardInventorySlots(playerInventory, 8, k);
+     }
+ 
+     private void addChestGrid(Container inventory, int left, int top) {
+-        for (int i = 0; i < this.containerRows; i++) {
+-            for (int j = 0; j < 9; j++) {
+-                this.addSlot(new Slot(inventory, j + i * 9, left + j * 18, top + i * 18));
++        for (int k = 0; k < this.containerRows; ++k) {
++            for (int l = 0; l < 9; ++l) {
++                this.addSlot(new Slot(inventory, l + k * 9, left + l * 18, top + k * 18));
+             }
+         }
++
+     }
+ 
+     @Override
+     public boolean stillValid(Player player) {
++        if (!this.checkReachable) return true; // CraftBukkit
+         return this.container.stillValid(player);
+     }
+ 
+     @Override
+     public ItemStack quickMoveStack(Player player, int slot) {
+-        ItemStack itemStack = ItemStack.EMPTY;
+-        Slot slot2 = this.slots.get(slot);
+-        if (slot2 != null && slot2.hasItem()) {
+-            ItemStack itemStack2 = slot2.getItem();
+-            itemStack = itemStack2.copy();
++        ItemStack itemstack = ItemStack.EMPTY;
++        Slot slot1 = (Slot) this.slots.get(slot);
++
++        if (slot1 != null && slot1.hasItem()) {
++            ItemStack itemstack1 = slot1.getItem();
++
++            itemstack = itemstack1.copy();
+             if (slot < this.containerRows * 9) {
+-                if (!this.moveItemStackTo(itemStack2, this.containerRows * 9, this.slots.size(), true)) {
++                if (!this.moveItemStackTo(itemstack1, this.containerRows * 9, this.slots.size(), true)) {
+                     return ItemStack.EMPTY;
+                 }
+-            } else if (!this.moveItemStackTo(itemStack2, 0, this.containerRows * 9, false)) {
++            } else if (!this.moveItemStackTo(itemstack1, 0, this.containerRows * 9, false)) {
+                 return ItemStack.EMPTY;
+             }
+ 
+-            if (itemStack2.isEmpty()) {
+-                slot2.setByPlayer(ItemStack.EMPTY);
++            if (itemstack1.isEmpty()) {
++                slot1.setByPlayer(ItemStack.EMPTY);
+             } else {
+-                slot2.setChanged();
++                slot1.setChanged();
+             }
+         }
+ 
+-        return itemStack;
++        return itemstack;
+     }
+ 
+     @Override

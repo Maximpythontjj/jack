@@ -1,0 +1,90 @@
+--- a/net/minecraft/server/ServerAdvancementManager.java
++++ b/net/minecraft/server/ServerAdvancementManager.java
+@@ -4,6 +4,7 @@
+ import com.google.common.collect.ImmutableMap.Builder;
+ import com.mojang.logging.LogUtils;
+ import java.util.Collection;
++import java.util.Iterator;
+ import java.util.Map;
+ import javax.annotation.Nullable;
+ import net.minecraft.advancements.Advancement;
+@@ -20,9 +21,14 @@
+ import net.minecraft.util.profiling.ProfilerFiller;
+ import org.slf4j.Logger;
+ 
++// CraftBukkit start
++import java.util.HashMap;
++// CraftBukkit end
++
+ public class ServerAdvancementManager extends SimpleJsonResourceReloadListener<Advancement> {
++
+     private static final Logger LOGGER = LogUtils.getLogger();
+-    public Map<ResourceLocation, AdvancementHolder> advancements = Map.of();
++    public Map<ResourceLocation, AdvancementHolder> advancements = new HashMap<>(); // CraftBukkit - SPIGOT-7734: mutable
+     private AdvancementTree tree = new AdvancementTree();
+     private final HolderLookup.Provider registries;
+ 
+@@ -31,35 +37,48 @@
+         this.registries = registries;
+     }
+ 
+-    @Override
+     protected void apply(Map<ResourceLocation, Advancement> prepared, ResourceManager manager, ProfilerFiller profiler) {
+         Builder<ResourceLocation, AdvancementHolder> builder = ImmutableMap.builder();
+-        prepared.forEach((id, advancement) -> {
+-            this.validate(id, advancement);
+-            builder.put(id, new AdvancementHolder(id, advancement));
++
++        prepared.forEach((minecraftkey, advancement) -> {
++            // Spigot start
++            if (org.spigotmc.SpigotConfig.disabledAdvancements != null && (org.spigotmc.SpigotConfig.disabledAdvancements.contains("*") || org.spigotmc.SpigotConfig.disabledAdvancements.contains(minecraftkey.toString()) || org.spigotmc.SpigotConfig.disabledAdvancements.contains(minecraftkey.getNamespace()))) {
++                return;
++            }
++            // Spigot end
++            this.validate(minecraftkey, advancement);
++            builder.put(minecraftkey, new AdvancementHolder(minecraftkey, advancement));
+         });
+-        this.advancements = builder.buildOrThrow();
+-        AdvancementTree advancementTree = new AdvancementTree();
+-        advancementTree.addAll(this.advancements.values());
++        this.advancements = new HashMap<>(builder.buildOrThrow()); // CraftBukkit - SPIGOT-7734: mutable
++        AdvancementTree advancementtree = new AdvancementTree();
+ 
+-        for (AdvancementNode advancementNode : advancementTree.roots()) {
+-            if (advancementNode.holder().value().display().isPresent()) {
+-                TreeNodePosition.run(advancementNode);
++        advancementtree.addAll(this.advancements.values());
++        LOGGER.info("Loaded {} advancements", advancementtree.nodes().size()); // Paper - Improve logging and errors; moved from AdvancementTree#addAll
++        Iterator iterator = advancementtree.roots().iterator();
++
++        while (iterator.hasNext()) {
++            AdvancementNode advancementnode = (AdvancementNode) iterator.next();
++
++            if (advancementnode.holder().value().display().isPresent()) {
++                TreeNodePosition.run(advancementnode);
+             }
+         }
+ 
+-        this.tree = advancementTree;
++        this.tree = advancementtree;
+     }
+ 
+     private void validate(ResourceLocation id, Advancement advancement) {
+-        ProblemReporter.Collector collector = new ProblemReporter.Collector();
+-        advancement.validate(collector, this.registries);
+-        collector.getReport().ifPresent(error -> LOGGER.warn("Found validation problems in advancement {}: \n{}", id, error));
++        ProblemReporter.Collector problemreporter_a = new ProblemReporter.Collector();
++
++        advancement.validate(problemreporter_a, this.registries);
++        problemreporter_a.getReport().ifPresent((s) -> {
++            ServerAdvancementManager.LOGGER.warn("Found validation problems in advancement {}: \n{}", id, s);
++        });
+     }
+ 
+     @Nullable
+     public AdvancementHolder get(ResourceLocation id) {
+-        return this.advancements.get(id);
++        return (AdvancementHolder) this.advancements.get(id);
+     }
+ 
+     public AdvancementTree tree() {

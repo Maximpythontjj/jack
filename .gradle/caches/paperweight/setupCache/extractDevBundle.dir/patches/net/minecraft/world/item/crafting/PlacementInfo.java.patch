@@ -1,0 +1,63 @@
+--- a/net/minecraft/world/item/crafting/PlacementInfo.java
++++ b/net/minecraft/world/item/crafting/PlacementInfo.java
+@@ -11,26 +11,28 @@
+ public class PlacementInfo {
+     public static final PlacementInfo NOT_PLACEABLE = new PlacementInfo(List.of(), List.of(), List.of());
+     private final List<Ingredient> ingredients;
+-    private final List<StackedContents.IngredientInfo<Holder<Item>>> unpackedIngredients;
++    private final List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> unpackedIngredients; // Paper - Improve exact choice recipe ingredients
+     private final List<Optional<PlacementInfo.SlotInfo>> slotInfo;
+ 
+     private PlacementInfo(
+-        List<Ingredient> ingredients, List<StackedContents.IngredientInfo<Holder<Item>>> rawIngredients, List<Optional<PlacementInfo.SlotInfo>> placementSlots
++        List<Ingredient> ingredients, List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> rawIngredients, List<Optional<PlacementInfo.SlotInfo>> placementSlots // Paper - Improve exact choice recipe ingredients
+     ) {
+         this.ingredients = ingredients;
+         this.unpackedIngredients = rawIngredients;
+         this.slotInfo = placementSlots;
+     }
+ 
+-    public static StackedContents.IngredientInfo<Holder<Item>> ingredientToContents(Ingredient ingredient) {
+-        return StackedItemContents.convertIngredientContents(ingredient.items().stream());
++    // Paper start - Improve exact choice recipe ingredients
++    public static StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact> ingredientToContents(Ingredient ingredient) {
++        return StackedItemContents.convertIngredientContents(ingredient.isExact() ? ingredient.itemStacks().stream().map(io.papermc.paper.inventory.recipe.ItemOrExact.Exact::new) : ingredient.items().stream().map(io.papermc.paper.inventory.recipe.ItemOrExact.Item::new), ingredient.isExact());
++        // Paper end - Improve exact choice recipe ingredients
+     }
+ 
+     public static PlacementInfo create(Ingredient ingredient) {
+         if (ingredient.items().isEmpty()) {
+             return NOT_PLACEABLE;
+         } else {
+-            StackedContents.IngredientInfo<Holder<Item>> ingredientInfo = ingredientToContents(ingredient);
++            StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact> ingredientInfo = ingredientToContents(ingredient); // Paper - Improve exact choice recipe ingredients
+             PlacementInfo.SlotInfo slotInfo = new PlacementInfo.SlotInfo(0);
+             return new PlacementInfo(List.of(ingredient), List.of(ingredientInfo), List.of(Optional.of(slotInfo)));
+         }
+@@ -39,7 +41,7 @@
+     public static PlacementInfo createFromOptionals(List<Optional<Ingredient>> ingredients) {
+         int i = ingredients.size();
+         List<Ingredient> list = new ArrayList<>(i);
+-        List<StackedContents.IngredientInfo<Holder<Item>>> list2 = new ArrayList<>(i);
++        List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> list2 = new ArrayList<>(i); // Paper - Improve exact choice recipe ingredients
+         List<Optional<PlacementInfo.SlotInfo>> list3 = new ArrayList<>(i);
+         int j = 0;
+ 
+@@ -63,7 +65,7 @@
+ 
+     public static PlacementInfo create(List<Ingredient> ingredients) {
+         int i = ingredients.size();
+-        List<StackedContents.IngredientInfo<Holder<Item>>> list = new ArrayList<>(i);
++        List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> list = new ArrayList<>(i); // Paper - Improve exact choice recipe ingredients
+         List<Optional<PlacementInfo.SlotInfo>> list2 = new ArrayList<>(i);
+ 
+         for (int j = 0; j < i; j++) {
+@@ -87,7 +89,7 @@
+         return this.ingredients;
+     }
+ 
+-    public List<StackedContents.IngredientInfo<Holder<Item>>> unpackedIngredients() {
++    public List<StackedContents.IngredientInfo<io.papermc.paper.inventory.recipe.ItemOrExact>> unpackedIngredients() { // Paper - Improve exact choice recipe ingredients
+         return this.unpackedIngredients;
+     }
+ 
