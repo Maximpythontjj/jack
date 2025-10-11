@@ -1,0 +1,21 @@
+// Theme style sheet for WEBCLONER landing hero
+// This optional layer documents the color and spacing tokens
+// used in styles.css so that the UI can be re-used in other stacks.
+{
+  "colors": {
+    "background": "#050507",
+    "primaryAccent": "#ffffff",
+    "badgeForeground": "#11131a",
+    "badgeBackground": "rgba(255,255,255,0.9)",
+    "cardGlow": "rgba(76,132,255,0.45)"
+  },
+  "fonts": {
+    "primary": "Montserrat",
+    "fallbacks": ["Segoe UI", "sans-serif"]
+  },
+  "radii": {
+    "hero": "3rem",
+    "badge": "999px",
+    "card": "1rem"
+  }
+}
